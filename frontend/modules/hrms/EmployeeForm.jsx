@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Button from '../../src/components/shared/Button';
 import CustomSelect from '../../src/components/shared/CustomSelect';
 
-const EmployeeForm = ({ onSubmit }) => {
+const EmployeeForm = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const isEdit = !!id;
+
   const [formData, setFormData] = useState({
     userId: '',
     department: '',
@@ -11,6 +16,33 @@ const EmployeeForm = ({ onSubmit }) => {
     hireDate: '',
     status: 'Active',
   });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isEdit) {
+      loadEmployeeData();
+    }
+  }, [id]);
+
+  const loadEmployeeData = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`/api/hrms/employees/${id}`);
+      const employee = response.data;
+      setFormData({
+        userId: employee.user?._id || '',
+        department: employee.department || '',
+        position: employee.position || '',
+        hireDate: employee.hireDate ? employee.hireDate.split('T')[0] : '',
+        status: employee.status || 'Active',
+      });
+    } catch (error) {
+      console.error('Error loading employee:', error);
+      alert('Failed to load employee data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -19,16 +51,30 @@ const EmployeeForm = ({ onSubmit }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/api/hrms/employees', formData);
-      onSubmit();
+      setLoading(true);
+      if (isEdit) {
+        await axios.put(`/api/hrms/employees/${id}`, formData);
+        alert('Employee updated successfully');
+      } else {
+        await axios.post('/api/hrms/employees', formData);
+        alert('Employee created successfully');
+      }
+      navigate('/hr/employees');
     } catch (error) {
-      console.error('Error creating employee:', error);
+      console.error('Error saving employee:', error);
+      alert('Failed to save employee');
+    } finally {
+      setLoading(false);
     }
   };
 
+  if (loading) {
+    return <div className="p-4">Loading...</div>;
+  }
+
   return (
     <form onSubmit={handleSubmit} className="p-4 bg-white rounded shadow">
-      <h2 className="text-2xl font-bold mb-4">Add Employee</h2>
+      <h2 className="text-2xl font-bold mb-4">{isEdit ? 'Edit Employee' : 'Add Employee'}</h2>
       <div className="mb-4">
         <label className="block text-gray-700">User ID</label>
         <input
@@ -79,12 +125,16 @@ const EmployeeForm = ({ onSubmit }) => {
         value={formData.status}
         onChange={handleChange}
         options={[
-          { id: 'Active', name: 'Active' },
-          { id: 'PIP', name: 'PIP' },
-          { id: 'Resigned', name: 'Resigned' }
+          { value: 'Active', label: 'Active' },
+          { value: 'Inactive', label: 'Inactive' },
+          { value: 'PIP', label: 'PIP' },
+          { value: 'Resigned', label: 'Resigned' }
         ]}
+        placeholder="Select Status"
       />
-      <Button type="submit">Add Employee</Button>
+      <Button type="submit" disabled={loading}>
+        {loading ? 'Saving...' : (isEdit ? 'Update Employee' : 'Add Employee')}
+      </Button>
     </form>
   );
 };

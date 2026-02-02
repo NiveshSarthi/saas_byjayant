@@ -86,6 +86,7 @@ function App() {
           <Route path="/hr" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><HRDashboard /></ProtectedRoute>} />
           <Route path="/hr/employees" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><EmployeeList /></ProtectedRoute>} />
           <Route path="/hr/employees/add" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><EmployeeForm /></ProtectedRoute>} />
+          <Route path="/hr/employees/edit/:id" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><EmployeeForm /></ProtectedRoute>} />
           <Route path="/hr/recruitment" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><RecruitmentPipeline /></ProtectedRoute>} />
           <Route path="/hr/recruitment/candidate" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><CandidateForm /></ProtectedRoute>} />
           <Route path="/hr/recruitment/jd" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><JDForm /></ProtectedRoute>} />

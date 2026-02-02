@@ -38,6 +38,13 @@ const createFNF = async (req, res) => {
     if (data.employeeId && !data.employee) {
       data.employee = data.employeeId;
     }
+
+    // Validate that employee exists
+    const employee = await Employee.findById(data.employee);
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
     const fnf = new FNF(data);
     await fnf.save();
 
