@@ -25,7 +25,7 @@ const employeeSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Active', 'PIP', 'Resigned'],
+    enum: ['Active', 'Inactive', 'PIP', 'Resigned'],
     default: 'Active',
   },
   level: {

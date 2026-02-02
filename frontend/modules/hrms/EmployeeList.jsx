@@ -6,11 +6,13 @@ import Button from '../../src/components/shared/Button';
 import Badge from '../../src/components/shared/Badge';
 import CustomSelect from '../../src/components/shared/CustomSelect';
 import { Icons } from '../../src/components/shared/Icons';
+import { useNavigate } from 'react-router-dom';
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewMode, setViewMode] = useState('tree'); // 'tree' or 'list'
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -47,6 +49,45 @@ const EmployeeList = () => {
       setEmployees(response.data);
     } catch (error) {
       console.error('Error fetching employees:', error);
+    }
+  };
+
+  const handleEditEmployee = (employeeId) => {
+    navigate(`/hr/employees/edit/${employeeId}`);
+  };
+
+  const handleDeleteEmployee = async (employeeId) => {
+    if (window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+      try {
+        await axios.delete(`/api/hrms/employees/${employeeId}`);
+        fetchEmployees();
+        alert('Employee deleted successfully');
+      } catch (error) {
+        console.error('Error deleting employee:', error);
+        alert('Failed to delete employee');
+      }
+    }
+  };
+
+  const handleStatusToggle = async (employeeId, currentStatus) => {
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    try {
+      await axios.put(`/api/hrms/employees/${employeeId}/status`, { status: newStatus });
+      fetchEmployees();
+      alert(`Employee status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating employee status:', error);
+      alert('Failed to update employee status');
+    }
+  };
+
+  const getStatusVariant = (status) => {
+    switch (status) {
+      case 'Active': return 'success';
+      case 'Inactive': return 'neutral';
+      case 'PIP': return 'warning';
+      case 'Resigned': return 'danger';
+      default: return 'neutral';
     }
   };
 
@@ -543,7 +584,7 @@ const EmployeeList = () => {
                           width: '2.5rem',
                           height: '2.5rem',
                           borderRadius: '50%',
-                          background: 'var(--accent-primary)',
+                          background: emp.status === 'Active' ? 'var(--accent-primary)' : emp.status === 'Inactive' ? 'var(--text-tertiary)' : 'var(--warning-primary)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -560,11 +601,42 @@ const EmployeeList = () => {
                           <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                             {emp.employeeId} • {emp.position} • {emp.department}
                           </div>
+                          <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-xs)' }}>
+                            <Badge variant={getStatusVariant(emp.status)}>
+                              {emp.status}
+                            </Badge>
+                            <Badge variant={emp.level === 'Intern' ? 'warning' : emp.level.includes('Manager') ? 'primary' : 'neutral'}>
+                              {emp.level}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
-                      <Badge variant={emp.level === 'Intern' ? 'warning' : emp.level.includes('Manager') ? 'primary' : 'neutral'}>
-                        {emp.level}
-                      </Badge>
+                      <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                        <Button
+                          onClick={() => handleEditEmployee(emp._id)}
+                          variant="secondary"
+                          size="sm"
+                          title="Edit Employee"
+                        >
+                          <Icons.Edit style={{ width: '1rem', height: '1rem' }} />
+                        </Button>
+                        <Button
+                          onClick={() => handleStatusToggle(emp._id, emp.status)}
+                          variant={emp.status === 'Active' ? 'warning' : 'success'}
+                          size="sm"
+                          title={emp.status === 'Active' ? 'Mark as Inactive' : 'Mark as Active'}
+                        >
+                          {emp.status === 'Active' ? <Icons.X style={{ width: '1rem', height: '1rem' }} /> : <Icons.Check style={{ width: '1rem', height: '1rem' }} />}
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteEmployee(emp._id)}
+                          variant="danger"
+                          size="sm"
+                          title="Delete Employee"
+                        >
+                          <Icons.Trash style={{ width: '1rem', height: '1rem' }} />
+                        </Button>
+                      </div>
                     </div>
                   </Card>
                 ))}

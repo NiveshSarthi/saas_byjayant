@@ -53,6 +53,32 @@ const ResignationApprovals = () => {
     }
   };
 
+  const stopFNF = async (fnfId) => {
+    if (window.confirm('Are you sure you want to stop this FNF process? The employee will be marked as Active again.')) {
+      try {
+        await axios.put(`/api/hrms/fnf/${fnfId}/stop`);
+        fetchResignations();
+        alert('FNF process stopped successfully!');
+      } catch (error) {
+        console.error('Error stopping FNF:', error);
+        alert('Failed to stop FNF process');
+      }
+    }
+  };
+
+  const revertFNF = async (fnfId) => {
+    if (window.confirm('Are you sure you want to revert this FNF? This will permanently delete the FNF record and mark the employee as Active.')) {
+      try {
+        await axios.delete(`/api/hrms/fnf/${fnfId}/revert`);
+        fetchResignations();
+        alert('FNF reverted successfully!');
+      } catch (error) {
+        console.error('Error reverting FNF:', error);
+        alert('Failed to revert FNF');
+      }
+    }
+  };
+
   const getStatusVariant = (status) => {
     switch (status) {
       case 'Approved': return 'success';
@@ -236,6 +262,26 @@ const ResignationApprovals = () => {
                       >
                         Approve
                       </Button>
+                    )}
+                    {(resignation.status === 'Approved' || resignation.status === 'Paid' || resignation.status === 'Completed') && (
+                      <>
+                        <Button
+                          onClick={() => stopFNF(resignation._id)}
+                          variant="secondary"
+                          size="sm"
+                          title="Stop FNF process and reactivate employee"
+                        >
+                          Stop FNF
+                        </Button>
+                        <Button
+                          onClick={() => revertFNF(resignation._id)}
+                          variant="danger"
+                          size="sm"
+                          title="Permanently delete FNF and reactivate employee"
+                        >
+                          Revert FNF
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

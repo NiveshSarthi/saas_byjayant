@@ -5,32 +5,49 @@ const PDFDocument = require('pdfkit');
 const getFNFs = async (req, res) => {
   try {
     const fnfs = await FNF.find()
-      .populate('employee')
+      .populate({
+        path: 'employee',
+        populate: { path: 'user', select: 'name position department' }
+      })
       .sort({ createdAt: -1 });
     res.json(fnfs);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Get FNFs Error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
 const getFNFById = async (req, res) => {
   try {
     const fnf = await FNF.findById(req.params.id)
-      .populate('employee');
+      .populate({
+        path: 'employee',
+        populate: { path: 'user', select: 'name position department' }
+      });
     if (!fnf) return res.status(404).json({ message: 'FNF not found' });
     res.json(fnf);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Get FNF By ID Error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
 const createFNF = async (req, res) => {
   try {
-    const fnf = new FNF(req.body);
+    const data = { ...req.body };
+    if (data.employeeId && !data.employee) {
+      data.employee = data.employeeId;
+    }
+    const fnf = new FNF(data);
     await fnf.save();
+
+    // Automatically set employee status to inactive when FNF is initiated
+    await Employee.findByIdAndUpdate(data.employee, { status: 'Inactive' });
+
     res.status(201).json(fnf);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('FNF Creation Error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -78,8 +95,8 @@ const calculateFNF = async (req, res) => {
     };
 
     finalPayroll.total = finalPayroll.basicSalary + finalPayroll.hra + finalPayroll.allowances +
-                        finalPayroll.incentives + finalPayroll.performanceRewards -
-                        finalPayroll.pf - finalPayroll.gratuity - finalPayroll.deductions;
+      finalPayroll.incentives + finalPayroll.performanceRewards -
+      finalPayroll.pf - finalPayroll.gratuity - finalPayroll.deductions;
 
     // Calculate dues
     const dues = {
@@ -113,18 +130,23 @@ const calculateFNF = async (req, res) => {
       netAmount
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('FNF Calculation Error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
 const generateFNFLetter = async (req, res) => {
   try {
-    const fnf = await FNF.findById(req.params.id).populate('employee');
+    const fnf = await FNF.findById(req.params.id).populate({
+      path: 'employee',
+      populate: { path: 'user', select: 'name' }
+    });
     if (!fnf) return res.status(404).json({ message: 'FNF not found' });
 
     const doc = new PDFDocument();
+    const safeName = (fnf.employee?.user?.name || 'employee').replace(/[^a-zA-Z0-0]/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=fnf-${fnf.employee.user.name}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename="fnf-${safeName}.pdf"`);
 
     doc.pipe(res);
 
@@ -189,7 +211,8 @@ const generateFNFLetter = async (req, res) => {
 
     doc.end();
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Generate FNF Letter Error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -201,6 +224,38 @@ const updateFNFStatus = async (req, res) => {
 
     if (!fnf) return res.status(404).json({ message: 'FNF not found' });
     res.json(fnf);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const stopFNF = async (req, res) => {
+  try {
+    const fnf = await FNF.findByIdAndUpdate(req.params.id, {
+      status: 'Stopped'
+    }, { new: true }).populate('employee');
+
+    if (!fnf) return res.status(404).json({ message: 'FNF not found' });
+
+    // Revert employee status to Active when FNF is stopped
+    await Employee.findByIdAndUpdate(fnf.employee._id, { status: 'Active' });
+
+    res.json(fnf);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const revertFNF = async (req, res) => {
+  try {
+    const fnf = await FNF.findByIdAndDelete(req.params.id);
+
+    if (!fnf) return res.status(404).json({ message: 'FNF not found' });
+
+    // Revert employee status to Active when FNF is reverted
+    await Employee.findByIdAndUpdate(fnf.employee._id, { status: 'Active' });
+
+    res.json({ message: 'FNF reverted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -228,6 +283,8 @@ module.exports = {
   updateFNF,
   updateFNFStatus,
   deleteFNF,
+  stopFNF,
+  revertFNF,
   calculateFNF,
   generateFNFLetter,
   processPayment

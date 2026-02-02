@@ -62,7 +62,7 @@ const fnfSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Initiated', 'Under Review', 'Approved', 'Paid', 'Completed'],
+    enum: ['Initiated', 'Under Review', 'Approved', 'Paid', 'Completed', 'Stopped'],
     default: 'Initiated'
   },
   documents: [{

@@ -29,6 +29,7 @@ router.get('/', employeeController.getAllEmployees);
 router.get('/:id', employeeController.getEmployeeById);
 router.post('/', employeeController.createEmployee);
 router.put('/:id', employeeController.updateEmployee);
+router.put('/:id/status', employeeController.updateEmployeeStatus);
 router.delete('/:id', employeeController.deleteEmployee);
 router.put('/:id/onboarding', employeeController.updateOnboarding);
 router.put('/:id/complete-onboarding', employeeController.completeOnboarding);

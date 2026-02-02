@@ -35,4 +35,10 @@ router.get('/:id/generate-letter', authorize(['HR Manager', 'Accounts', 'Admin']
 // Process payment
 router.post('/:id/process-payment', authorize(['Accounts']), fnfController.processPayment);
 
+// Stop FNF
+router.put('/:id/stop', authorize(['HR Manager', 'Admin']), fnfController.stopFNF);
+
+// Revert FNF
+router.delete('/:id/revert', authorize(['HR Manager', 'Admin']), fnfController.revertFNF);
+
 module.exports = router;
