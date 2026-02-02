@@ -20,6 +20,9 @@ router.post('/', authorize(['HR Manager', 'Admin']), fnfController.createFNF);
 // Update FNF
 router.put('/:id', authorize(['HR Manager', 'Accounts', 'Admin']), fnfController.updateFNF);
 
+// Update FNF status
+router.put('/:id/status', authorize(['HR Manager', 'Admin']), fnfController.updateFNFStatus);
+
 // Delete FNF
 router.delete('/:id', authorize(['HR Manager', 'Admin']), fnfController.deleteFNF);
 

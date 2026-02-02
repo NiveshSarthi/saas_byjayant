@@ -452,78 +452,121 @@ const exportSinglePayrollPdf = async (req, res) => {
           padding: 20px;
           color: #1e293b;
           font-size: 12px;
+          line-height: 1.4;
         }
         .header-bg {
-          background-color: #1e293b;
+          background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
           color: white;
           padding: 30px;
           margin-bottom: 20px;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        .company-name { font-size: 24px; font-weight: bold; margin: 0; }
-        .company-info { font-size: 10px; opacity: 0.8; margin-top: 5px; }
-        
+        .company-name {
+          font-size: 28px;
+          font-weight: bold;
+          margin: 0;
+          letter-spacing: 1px;
+        }
+        .company-info {
+          font-size: 11px;
+          opacity: 0.9;
+          margin-top: 8px;
+          line-height: 1.5;
+        }
+
         .title {
           text-align: center;
-          font-size: 20px;
+          font-size: 22px;
           font-weight: bold;
-          margin: 20px 0;
+          margin: 25px 0 15px 0;
           text-transform: uppercase;
+          color: #1e293b;
+          letter-spacing: 1px;
         }
         .subtitle {
           text-align: center;
-          font-size: 12px;
-          margin-bottom: 20px;
+          font-size: 13px;
+          margin-bottom: 25px;
+          color: #64748b;
+          font-weight: 500;
         }
 
         table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 20px;
+          margin-bottom: 25px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border-radius: 6px;
+          overflow: hidden;
         }
         th, td {
           border: 1px solid #e2e8f0;
-          padding: 10px;
+          padding: 12px;
           text-align: left;
-          vertical-align: top;
+          vertical-align: middle;
         }
         th {
-          background-color: #f8fafc;
-          font-weight: bold;
+          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+          font-weight: 600;
+          color: #374151;
+          text-transform: uppercase;
+          font-size: 11px;
+          letter-spacing: 0.5px;
         }
         .amount {
           text-align: right;
           white-space: nowrap;
           width: 120px;
+          font-weight: 600;
+          color: #059669;
         }
         .label {
-          font-weight: bold;
+          font-weight: 600;
           background-color: #f8fafc;
-          width: 150px;
+          width: 160px;
+          color: #374151;
         }
-        
+
         .net-salary-row {
-          background-color: #1e293b;
+          background: linear-gradient(135deg, #059669 0%, #047857 100%);
           color: white;
-          font-size: 16px;
+          font-size: 18px;
           font-weight: bold;
           text-align: center;
-          padding: 15px;
-          margin: 20px 0;
+          padding: 20px;
+          margin: 25px 0;
+          border-radius: 8px;
+          box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
+          letter-spacing: 1px;
         }
-        
+
         .footer {
           text-align: center;
           font-style: italic;
           font-size: 10px;
           color: #94a3b8;
-          margin-top: 50px;
+          margin-top: 60px;
+          padding: 20px;
+          border-top: 1px solid #e2e8f0;
+          background-color: #f8fafc;
+          border-radius: 6px;
         }
         .section-title {
           font-weight: bold;
-          margin-bottom: 10px;
-          font-size: 13px;
-          border-bottom: 2px solid #1e293b;
-          padding-bottom: 5px;
+          margin-bottom: 15px;
+          font-size: 14px;
+          border-bottom: 3px solid #3b82f6;
+          padding-bottom: 8px;
+          color: #1e293b;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        tfoot td {
+          background-color: #f1f5f9;
+          font-weight: bold;
+          color: #374151;
         }
       </style>
     </head>
@@ -682,7 +725,7 @@ const exportSinglePayrollExcel = async (req, res) => {
       .populate('employee')
       .populate({
         path: 'employee',
-        populate: { path: 'user', select: 'name' }
+        populate: { path: 'user', select: 'name email' }
       });
 
     if (!p) return res.status(404).json({ message: 'Payroll not found' });
@@ -690,36 +733,124 @@ const exportSinglePayrollExcel = async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Salary Slip');
 
-    worksheet.mergeCells('A1:B1');
-    worksheet.getCell('A1').value = 'SYNDITECH - SALARY SLIP';
-    worksheet.getCell('A1').font = { size: 14, bold: true };
+    // Company Header
+    worksheet.mergeCells('A1:D1');
+    worksheet.getCell('A1').value = 'SYNDITECH PRIVATE LIMITED';
+    worksheet.getCell('A1').font = { size: 16, bold: true };
     worksheet.getCell('A1').alignment = { horizontal: 'center' };
 
-    worksheet.addRow(['Employee Name:', p.employee?.user?.name || 'N/A']);
-    worksheet.addRow(['Month/Year:', `${p.month}/${p.year}`]);
-    worksheet.addRow([]);
-    worksheet.addRow(['EARNINGS', 'AMOUNT (₹)']);
-    worksheet.addRow(['Basic Salary', p.basicSalary || 0]);
-    worksheet.addRow(['HRA', p.hra || 0]);
-    worksheet.addRow(['Conveyance', p.conveyance || 0]);
-    worksheet.addRow(['Other Allowances', p.allowances || 0]);
-    worksheet.addRow(['Incentives', p.incentives || 0]);
-    worksheet.addRow(['Rewards', p.performanceRewards || 0]);
-    worksheet.addRow(['GROSS SALARY', p.grossSalary || 0]);
-    worksheet.addRow([]);
-    worksheet.addRow(['DEDUCTIONS', 'AMOUNT (₹)']);
-    worksheet.addRow(['PF (Employee)', p.pf || 0]);
-    worksheet.addRow(['ESI (Employee)', p.esi || 0]);
-    worksheet.addRow(['LWF (Employee)', p.lwf || 0]);
-    worksheet.addRow(['Professional Tax', p.professionalTax || 0]);
-    worksheet.addRow(['Tax (TDS)', p.tds || 0]);
-    worksheet.addRow(['NET SALARY', p.total || 0]);
+    worksheet.mergeCells('A2:D2');
+    worksheet.getCell('A2').value = 'Salary Slip';
+    worksheet.getCell('A2').font = { size: 14, bold: true };
+    worksheet.getCell('A2').alignment = { horizontal: 'center' };
 
+    worksheet.mergeCells('A3:D3');
+    const monthName = new Date(p.year, p.month - 1).toLocaleString('default', { month: 'long' });
+    worksheet.getCell('A3').value = `For the month of ${monthName} ${p.year}`;
+    worksheet.getCell('A3').alignment = { horizontal: 'center' };
+
+    // Employee Details
+    worksheet.addRow([]);
+    worksheet.addRow(['Employee Details', '', '', '']);
+    worksheet.getCell('A5').font = { bold: true };
+    worksheet.mergeCells('A5:D5');
+
+    worksheet.addRow(['Employee Name', p.employee?.user?.name || 'N/A', 'Employee ID', p.employee?._id || 'N/A']);
+    worksheet.addRow(['Department', p.employee?.department || 'N/A', 'Position', p.employee?.position || 'N/A']);
+    worksheet.addRow(['Email', p.employee?.user?.email || 'N/A', 'Month/Year', `${monthName} ${p.year}`]);
+
+    // Earnings Section
+    worksheet.addRow([]);
+    worksheet.addRow(['EARNINGS', 'AMOUNT (₹)', '', '']);
+    worksheet.getCell('A10').font = { bold: true };
+    worksheet.mergeCells('A10:D10');
+
+    const earnings = [
+      ['Basic Salary', p.basicSalary || 0],
+      ['House Rent Allowance (HRA)', p.hra || 0],
+      ['Conveyance Allowance', p.conveyance || 0],
+      ['LTA', p.lta || 0],
+      ['Medical Allowance', p.medical || 0],
+      ['Other Allowances', p.allowances || 0],
+      ['Sales Incentives', p.incentives || 0],
+      ['Performance Rewards', p.performanceRewards || 0]
+    ];
+
+    earnings.forEach(([label, value]) => {
+      if (value > 0) {
+        worksheet.addRow([label, value, '', '']);
+      }
+    });
+
+    // Gross Salary
+    worksheet.addRow(['', '', '', '']);
+    worksheet.addRow(['GROSS SALARY', p.grossSalary || 0, '', '']);
+    worksheet.getCell(worksheet.lastRow.getCell(1).address).font = { bold: true };
+
+    // Deductions Section
+    worksheet.addRow([]);
+    worksheet.addRow(['DEDUCTIONS', 'AMOUNT (₹)', '', '']);
+    worksheet.getCell(worksheet.lastRow.getCell(1).address).font = { bold: true };
+    worksheet.mergeCells(worksheet.lastRow.getCell(1).address + ':' + worksheet.lastRow.getCell(4).address);
+
+    const deductions = [
+      ['Provident Fund (PF)', p.pf || 0],
+      ['ESIC (Employee)', p.esi || 0],
+      ['LWF (Employee)', p.lwf || 0],
+      ['Professional Tax', p.professionalTax || 0],
+      ['Tax (TDS)', p.tds || 0],
+      ['Other Deductions', p.deductions || 0]
+    ];
+
+    deductions.forEach(([label, value]) => {
+      if (value > 0) {
+        worksheet.addRow([label, value, '', '']);
+      }
+    });
+
+    // Net Salary
+    worksheet.addRow(['', '', '', '']);
+    worksheet.addRow(['NET SALARY', p.total || 0, '', '']);
+    worksheet.getCell(worksheet.lastRow.getCell(1).address).font = { bold: true, size: 12 };
+
+    // Footer
+    worksheet.addRow([]);
+    worksheet.addRow([]);
+    worksheet.mergeCells(worksheet.lastRow.getCell(1).address + ':' + worksheet.lastRow.getCell(4).address);
+    worksheet.getCell(worksheet.lastRow.getCell(1).address).value = 'This is a system generated salary slip and does not require signature.';
+    worksheet.getCell(worksheet.lastRow.getCell(1).address).font = { italic: true, size: 9 };
+    worksheet.getCell(worksheet.lastRow.getCell(1).address).alignment = { horizontal: 'center' };
+
+    // Styling
     worksheet.getColumn(2).numFmt = '₹#,##0.00';
-    worksheet.columns.forEach(column => { column.width = 25; });
+    worksheet.getColumn(4).numFmt = '₹#,##0.00';
+
+    // Set column widths
+    worksheet.columns = [
+      { width: 25 }, // A
+      { width: 15 }, // B
+      { width: 15 }, // C
+      { width: 15 }  // D
+    ];
+
+    // Add borders to data sections
+    const lastRow = worksheet.lastRow.number;
+    for (let row = 5; row <= lastRow; row++) {
+      for (let col = 1; col <= 4; col++) {
+        const cell = worksheet.getCell(row, col);
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      }
+    }
+
+    const safeFilename = `salary_slip_${(p.employee?.user?.name || 'employee').replace(/[^a-zA-Z0-9]/g, '_')}_${p.month}_${p.year}.xlsx`;
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=salary_slip_${req.params.id}.xlsx`);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
 
     await workbook.xlsx.write(res);
     res.end();

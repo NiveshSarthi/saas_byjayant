@@ -208,6 +208,7 @@ const HRDashboard = () => {
           { key: 'overview', label: 'Overview', route: null },
           { key: 'employees', label: 'Employees', route: '/hr/employees' },
           { key: 'recruitment', label: 'Recruitment', route: '/hr/recruitment' },
+          { key: 'resignations', label: 'Resignations', route: '/hr/resignations' },
           { key: 'attendance', label: 'Attendance', route: '/hr/attendance/report' }
         ].map((tab) => (
           <button

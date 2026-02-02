@@ -193,6 +193,19 @@ const generateFNFLetter = async (req, res) => {
   }
 };
 
+const updateFNFStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const fnf = await FNF.findByIdAndUpdate(req.params.id, { status }, { new: true })
+      .populate('employee');
+
+    if (!fnf) return res.status(404).json({ message: 'FNF not found' });
+    res.json(fnf);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 const processPayment = async (req, res) => {
   try {
     const { paymentDate } = req.body;
@@ -213,6 +226,7 @@ module.exports = {
   getFNFById,
   createFNF,
   updateFNF,
+  updateFNFStatus,
   deleteFNF,
   calculateFNF,
   generateFNFLetter,

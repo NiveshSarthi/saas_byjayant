@@ -24,6 +24,7 @@ import AssetChecklist from '../modules/hrms/AssetChecklist';
 import EmployeeLifecycle from '../modules/hrms/EmployeeLifecycle';
 import AppraisalList from '../modules/hrms/AppraisalList';
 import PIPList from '../modules/hrms/PIPList';
+import ResignationApprovals from '../modules/hrms/ResignationApprovals';
 
 // Payroll Modules
 import PayrollCalculator from '../modules/payroll/PayrollCalculator';
@@ -99,6 +100,7 @@ function App() {
           <Route path="/hr/attendance/report" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><AttendanceReport /></ProtectedRoute>} />
           <Route path="/hr/appraisals" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><AppraisalList /></ProtectedRoute>} />
           <Route path="/hr/pip" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><PIPList /></ProtectedRoute>} />
+          <Route path="/hr/resignations" element={<ProtectedRoute allowedRoles={['HR Manager', 'HR']}><ResignationApprovals /></ProtectedRoute>} />
 
           {/* Employee Routes */}
           <Route path="/employee" element={<ProtectedRoute allowedRoles={['Employee']}><EmployeeDashboard /></ProtectedRoute>} />
