@@ -31,7 +31,7 @@ const upload = multer({ storage });
 
 // MongoDB connection
 if (process.env.NODE_ENV !== 'test') {
-  const mongoURI = 'mongodb://root:vbPT5AthmBzfWQtaH2MOdbj6nx4d9TFUvmHIGm0htv43pNMEMwMbgby82bqiGhzx@72.61.248.175:5444/?directConnection=true';
+  const mongoURI = process.env.MONGO_URI || 'mongodb://root:vbPT5AthmBzfWQtaH2MOdbj6nx4d9TFUvmHIGm0htv43pNMEMwMbgby82bqiGhzx@72.61.248.175:5444/?directConnection=true';
 
   console.log('Attempting to connect to MongoDB, readyState:', mongoose.connection.readyState);
   mongoose.connect(mongoURI, {
