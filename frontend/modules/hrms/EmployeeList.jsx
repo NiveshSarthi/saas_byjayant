@@ -35,9 +35,16 @@ const EmployeeList = () => {
     documentsSubmitted: { completed: false, attachment: null, attachmentName: '' }
   });
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [filters, setFilters] = useState({
+    department: '',
+    status: '',
+    level: '',
+    search: ''
+  });
 
   const departments = ['Sales', 'Marketing', 'HR', 'Administration', 'Accounts', 'IT', 'Operations'];
   const levels = ['Intern', 'Executive', 'Senior Executive', 'Team Lead', 'Manager', 'Senior Manager', 'Director', 'VP', 'CEO'];
+  const statuses = ['Active', 'Inactive', 'PIP', 'Resigned'];
 
   useEffect(() => {
     fetchEmployees();
@@ -266,6 +273,34 @@ const EmployeeList = () => {
   };
 
   const employeeTree = buildEmployeeTree(employees);
+
+  // Filter employees based on current filters
+  const filteredEmployees = employees.filter(emp => {
+    const matchesDepartment = !filters.department || emp.department === filters.department;
+    const matchesStatus = !filters.status || emp.status === filters.status;
+    const matchesLevel = !filters.level || emp.level === filters.level;
+    const matchesSearch = !filters.search ||
+      emp.user?.name?.toLowerCase().includes(filters.search.toLowerCase()) ||
+      emp.employeeId?.toLowerCase().includes(filters.search.toLowerCase()) ||
+      emp.position?.toLowerCase().includes(filters.search.toLowerCase());
+
+    return matchesDepartment && matchesStatus && matchesLevel && matchesSearch;
+  });
+
+  const filteredEmployeeTree = buildEmployeeTree(filteredEmployees);
+
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({ ...prev, [filterType]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      department: '',
+      status: '',
+      level: '',
+      search: ''
+    });
+  };
 
   return (
     <Layout>
@@ -560,23 +595,98 @@ const EmployeeList = () => {
           </Card>
         )}
 
+        {/* Filters */}
+        {!showAddForm && !selectedEmployee && (
+          <Card style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: '600' }}>Filters</h3>
+              <Button onClick={clearFilters} variant="ghost" size="sm">
+                Clear All
+              </Button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-md)' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: 'var(--space-xs)' }}>
+                  Search
+                </label>
+                <input
+                  type="text"
+                  placeholder="Search by name, ID, or position..."
+                  value={filters.search}
+                  onChange={(e) => handleFilterChange('search', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: 'var(--space-sm)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+              <CustomSelect
+                label="Department"
+                value={filters.department}
+                onChange={(e) => handleFilterChange('department', e.target.value)}
+                options={[
+                  { value: '', label: 'All Departments' },
+                  ...departments.map(dept => ({ value: dept, label: dept }))
+                ]}
+                placeholder="All Departments"
+              />
+              <CustomSelect
+                label="Status"
+                value={filters.status}
+                onChange={(e) => handleFilterChange('status', e.target.value)}
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  ...statuses.map(status => ({ value: status, label: status }))
+                ]}
+                placeholder="All Statuses"
+              />
+              <CustomSelect
+                label="Level"
+                value={filters.level}
+                onChange={(e) => handleFilterChange('level', e.target.value)}
+                options={[
+                  { value: '', label: 'All Levels' },
+                  ...levels.map(level => ({ value: level, label: level }))
+                ]}
+                placeholder="All Levels"
+              />
+            </div>
+          </Card>
+        )}
+
         {/* Employee Tree/List */}
         {!showAddForm && !selectedEmployee && (
           <Card style={{ padding: 'var(--space-2xl)' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: 'var(--space-xl)' }}>
-              {viewMode === 'tree' ? 'Organization Hierarchy' : 'Employee List'}
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xl)' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>
+                {viewMode === 'tree' ? 'Organization Hierarchy' : 'Employee List'}
+                {filteredEmployees.length !== employees.length && (
+                  <span style={{ fontSize: '0.875rem', fontWeight: '400', color: 'var(--text-secondary)', marginLeft: 'var(--space-md)' }}>
+                    ({filteredEmployees.length} of {employees.length} employees)
+                  </span>
+                )}
+              </h2>
+              <Button
+                onClick={() => setViewMode(viewMode === 'tree' ? 'list' : 'tree')}
+                variant="secondary"
+              >
+                {viewMode === 'tree' ? 'List View' : 'Tree View'}
+              </Button>
+            </div>
             {viewMode === 'tree' ? (
               <div>
-                {employeeTree.length > 0 ? renderEmployeeTree(employeeTree) : (
+                {filteredEmployeeTree.length > 0 ? renderEmployeeTree(filteredEmployeeTree) : (
                   <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--text-tertiary)' }}>
-                    No employees yet. Add your first employee above.
+                    {employees.length === 0 ? 'No employees yet. Add your first employee above.' : 'No employees match the current filters.'}
                   </div>
                 )}
               </div>
             ) : (
               <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
-                {employees.map(emp => (
+                {filteredEmployees.length > 0 ? filteredEmployees.map(emp => (
                   <Card key={emp._id} style={{ padding: 'var(--space-lg)' }} hover>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
@@ -639,7 +749,11 @@ const EmployeeList = () => {
                       </div>
                     </div>
                   </Card>
-                ))}
+                )) : (
+                  <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--text-tertiary)' }}>
+                    {employees.length === 0 ? 'No employees yet. Add your first employee above.' : 'No employees match the current filters.'}
+                  </div>
+                )}
               </div>
             )}
           </Card>
