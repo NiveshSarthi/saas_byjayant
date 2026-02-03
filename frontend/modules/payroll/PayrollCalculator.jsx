@@ -60,26 +60,7 @@ const PayrollCalculator = () => {
     // CTC
     statutoryCost: 0,
     totalCTC: 0,
-    variablePart: 0,
-    lwf: 0,
-    bonus: 0,
-    gratuity: 0,
-    professionalTax: 0,
-    tds: 0,
-    incentives: 0,
-    performanceRewards: 0,
-    deductions: 0,
-    grossSalary: 0,
-    totalCTC: 0,
-    total: 0,
-    employerSide: {
-      pf: 0,
-      pfAdmin: 0,
-      esi: 0,
-      lwf: 0,
-      bonus: 0,
-      gratuity: 0
-    }
+    variablePart: 0
   });
   const [editMode, setEditMode] = useState({});
   const [autoCalculate, setAutoCalculate] = useState(true);
