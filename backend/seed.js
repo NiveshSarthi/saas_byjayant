@@ -4,10 +4,15 @@ const User = require('./models/User');
 const Role = require('./models/Role');
 require('dotenv').config();
 
-const mongoURI = 'mongodb://root:vbPT5AthmBzfWQtaH2MOdbj6nx4d9TFUvmHIGm0htv43pNMEMwMbgby82bqiGhzx@72.61.248.175:5444/?directConnection=true';
+const mongoURI = process.env.MONGO_URI;
 
 const seedDatabase = async () => {
   try {
+    if (!mongoURI) {
+      console.error('MONGO_URI environment variable is required');
+      process.exit(1);
+    }
+
     await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,

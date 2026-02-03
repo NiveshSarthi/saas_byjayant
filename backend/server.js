@@ -34,16 +34,36 @@ app.use('/uploads', express.static('uploads'));
 
 // MongoDB connection
 if (process.env.NODE_ENV !== 'test') {
-  const mongoURI = process.env.MONGO_URI || 'mongodb://root:vbPT5AthmBzfWQtaH2MOdbj6nx4d9TFUvmHIGm0htv43pNMEMwMbgby82bqiGhzx@72.61.248.175:5444/?directConnection=true';
+  const mongoURI = process.env.MONGO_URI;
 
-  console.log('Attempting to connect to MongoDB, readyState:', mongoose.connection.readyState);
+  if (!mongoURI) {
+    console.error('MONGO_URI environment variable is required');
+    process.exit(1);
+  }
+
+  console.log('Attempting to connect to MongoDB...');
   mongoose.connect(mongoURI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
   })
-    .then(() => console.log('MongoDB connected'))
-    .catch(err => console.error('MongoDB connection error:', err));
+    .then(() => console.log('MongoDB connected successfully'))
+    .catch(err => {
+      console.error('MongoDB connection error:', err.message);
+      process.exit(1);
+    });
 }
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
 
 // Routes
 const authRoutes = require('./routes/auth');
