@@ -14,6 +14,8 @@ router.get('/my', authorize(['Employee']), gatepassController.getMyGatepasses);
 
 // HR/Admin routes
 router.get('/pending', authorize(['HR Manager', 'Admin']), gatepassController.getPendingGatepasses);
+router.get('/hr', authorize(['HR Manager', 'Admin']), gatepassController.getGatepassesByStatus);
+router.get('/stats', authorize(['HR Manager', 'Admin']), gatepassController.getGatepassStats);
 router.put('/:id/approve', authorize(['HR Manager', 'Admin']), gatepassController.approveGatepass);
 router.put('/:id/reject', authorize(['HR Manager', 'Admin']), gatepassController.rejectGatepass);
 

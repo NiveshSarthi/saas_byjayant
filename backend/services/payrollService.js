@@ -216,120 +216,120 @@ async function calculateStructuredSalary(ctc, category = 'Skilled') {
   };
 }
 
-// Total payroll calculation
-async function calculatePayroll(employeeId, month, year, ctc, allowances, city, overrides = {}) {
-  const employee = await Employee.findById(employeeId);
-  const structured = await calculateStructuredSalary(ctc, employee.category || 'Skilled');
+// Compliance-based payroll calculation
+async function calculatePayroll(employeeId, month, year, minimumWage, allowances = {}, overrides = {}) {
+  const employee = await Employee.findById(employeeId).populate('user');
 
-  const incentives = overrides.incentives !== undefined ? overrides.incentives : await calculateIncentives(employeeId, month, year);
-  const hra = overrides.hra !== undefined ? overrides.hra : structured.hra;
-  const conveyance = overrides.conveyance !== undefined ? overrides.conveyance : structured.conveyance;
-  const lta = overrides.lta !== undefined ? overrides.lta : calculateLTA(structured.basicSalary);
-  const medical = overrides.medical !== undefined ? overrides.medical : calculateMedical();
-  const pf = overrides.pf !== undefined ? overrides.pf : structured.pf;
+  if (!employee) {
+    throw new Error('Employee not found');
+  }
 
-  const yearsOfService = Math.floor((new Date() - employee.hireDate) / (1000 * 60 * 60 * 24 * 365));
-  const gratuity = overrides.gratuity !== undefined ? overrides.gratuity : structured.employerSide.gratuity;
+  // Use provided minimum wage or default
+  const MW = minimumWage || 1500;
 
-  // Professional Tax and TDS
-  const professionalTax = overrides.professionalTax !== undefined ? overrides.professionalTax : structured.professionalTax;
-  const tds = overrides.tds !== undefined ? overrides.tds : calculateTDS(ctc * 12);
+  // SALARY BREAKUP (FIXED FORMULAS)
+  const basicSalary = MW; // MW = Basic + DA (employee-specific)
+  const hra = Math.round(MW * 0.50); // HRA = ROUND(MW * 50%)
+  const conveyance = Math.round(MW * 0.15); // Conveyance = ROUND(MW * 15%)
+  const specialAllowance = allowances.specialAllowance || 100; // FIXED (100 unless different)
+  const otherAllowance = allowances.otherAllowance || 0; // Calculated to make total gross
 
-  // Attendance deductions
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const dailySalary = structured.grossSalary / daysInMonth;
+  // Calculate otherAllowance to reach desired gross
+  const grossFromFixed = basicSalary + hra + conveyance + specialAllowance;
+  const targetGross = allowances.targetGross || grossFromFixed + otherAllowance;
+  const calculatedOtherAllowance = Math.max(0, targetGross - grossFromFixed);
 
-  // ... (keeping attendance logic same as before)
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 1);
-  const attendanceRecords = await Attendance.find({
-    employee: employeeId,
-    date: { $gte: startDate, $lt: endDate }
-  });
+  const grossSalary = basicSalary + hra + conveyance + specialAllowance + calculatedOtherAllowance;
 
-  let totalDeductionDays = 0;
-  let presentDays = 0;
-  let lateArrivals = 0;
-  let earlyDepartures = 0;
+  // EMPLOYEE DEDUCTIONS
+  const pfEmployee = Math.min(Math.round(basicSalary * 0.12), 1800); // PF = MIN(ROUND(MW * 12%), 1800)
 
-  attendanceRecords.forEach(record => {
-    presentDays++;
-    const checkIn = new Date(record.checkInTime);
-    const timeInMinutes = checkIn.getHours() * 60 + checkIn.getMinutes();
+  // ESIC Employee (0.75% of Gross, only if Gross <= threshold)
+  const ESIC_THRESHOLD = 21000; // Assuming standard threshold
+  const esiEmployee = grossSalary <= ESIC_THRESHOLD ? Math.round(grossSalary * 0.0075) : 0;
 
-    if (timeInMinutes >= 10 * 60 && timeInMinutes < 12 * 60) {
-      totalDeductionDays += 0.25; // 1/4th salary
-      lateArrivals++;
-    } else if (timeInMinutes >= 12 * 60 && timeInMinutes < 14 * 60) {
-      totalDeductionDays += 0.5; // half day
-      lateArrivals++;
-    } else if (timeInMinutes >= 14 * 60 && timeInMinutes < 16 * 60) {
-      totalDeductionDays += 0.25; // 1/4th salary
-      lateArrivals++;
-    } else if (timeInMinutes >= 16 * 60) {
-      totalDeductionDays += 1.0; // Absent
-      lateArrivals++;
-    }
+  // LWF Employee (0.20%)
+  const STATE_CAP = 50; // Assuming state cap
+  const lwfEmployee = Math.min(Math.round(grossSalary * 0.002), STATE_CAP);
 
-    if (record.checkOutTime) {
-      const checkOut = new Date(record.checkOutTime);
-      const outTimeInMinutes = checkOut.getHours() * 60 + checkOut.getMinutes();
+  const professionalTax = 0; // Currently ZERO
+  const totalEmployeeDeductions = pfEmployee + esiEmployee + lwfEmployee + professionalTax;
 
-      if (outTimeInMinutes >= 17 * 60 && outTimeInMinutes < 18 * 60) {
-        totalDeductionDays += 0.25; // 1/4th salary
-        earlyDepartures++;
-      } else if (outTimeInMinutes >= 14 * 60 && outTimeInMinutes < 17 * 60) {
-        totalDeductionDays += 0.5; // half day
-        earlyDepartures++;
-      } else if (outTimeInMinutes < 14 * 60) {
-        totalDeductionDays += 1.0; // Absent
-        earlyDepartures++;
-      }
-    }
-  });
+  // Net Salary in Hand
+  const netSalary = grossSalary - totalEmployeeDeductions;
 
-  const absentDays = daysInMonth - presentDays;
-  totalDeductionDays += absentDays;
+  // EMPLOYER STATUTORY COST
+  const pfEmployer = Math.round(basicSalary * 0.12); // PF Employer (12% of MW)
+  const pfAdminCharges = Math.round(basicSalary * 0.01); // PF Admin Charges (1% of MW)
+  const esiEmployer = grossSalary <= ESIC_THRESHOLD ? Math.round(grossSalary * 0.0325) : 0; // ESI Employer (3.25%)
+  const lwfEmployer = Math.round(grossSalary * 0.004); // LWF Employer (0.40%)
+  const bonusEmployer = Math.round(Math.max(basicSalary, 7000) * 0.0833); // Bonus = 8.33% of MAX(MW, 7000)
+  const gratuityEmployer = Math.round(basicSalary * 0.0481); // Gratuity = 4.81% of MW
 
-  const deductions = overrides.deductions !== undefined ? overrides.deductions : totalDeductionDays * dailySalary;
+  const statutoryCost = pfEmployer + pfAdminCharges + esiEmployer + lwfEmployer + bonusEmployer + gratuityEmployer;
 
-  // Use incentive relations for dynamic calculation
-  const relations = await getIncentiveRelations();
-  let adjustedIncentives = incentives;
-  relations.forEach(rel => {
-    if (rel.incentiveType === 'sales' && rel.relation === 'percentage') {
-      adjustedIncentives += (rel.value / 100) * structured.basicSalary;
-    }
-  });
+  // CTC CALCULATION
+  const fixedCTC = grossSalary + statutoryCost;
+  const variablePay = allowances.variablePay || 0;
+  const totalCTC = fixedCTC + variablePay;
 
-  const performanceRewards = overrides.performanceRewards !== undefined ? overrides.performanceRewards : 0;
+  // Compliance check
+  const isCompliant = grossSalary >= MW && netSalary > 0;
+  const complianceStatus = isCompliant ? 'Compliant' : 'Non-Compliant';
 
-  const total = (structured.grossSalary + adjustedIncentives + performanceRewards) - (tds + deductions);
-
+  // Return structured payroll data
   return {
-    basicSalary: structured.basicSalary,
+    // Basic info
+    employee: employee._id,
+    month,
+    year,
+    designation: employee.position,
+    reportingManagerId: employee.reportsTo,
+
+    // Compliance
+    complianceStatus,
+    minimumWage: MW,
+    category: employee.category || 'Skilled',
+
+    // Earnings breakup
+    basicSalary,
     hra,
     conveyance,
-    lta,
-    medical,
-    pf,
-    esi: structured.esi,
-    lwf: structured.lwf,
+    specialAllowance,
+    otherAllowance: calculatedOtherAllowance,
+    grossSalary,
+
+    // Employee deductions
+    pf: pfEmployee,
+    esi: esiEmployee,
+    lwf: lwfEmployee,
     professionalTax,
-    tds,
-    allowances: structured.specialAllowance + structured.otherAllowance,
-    incentives: adjustedIncentives,
-    performanceRewards,
-    deductions,
-    presentDays,
-    lateArrivals,
-    earlyDepartures,
-    total: Math.max(0, structured.netSalary + adjustedIncentives + performanceRewards - (tds + (totalDeductionDays * dailySalary))), // Corrected Net logic
-    grossSalary: structured.grossSalary,
-    netSalary: structured.netSalary,
-    statutoryCost: structured.statutoryCost,
-    totalCTC: structured.totalCTC,
-    employerSide: structured.employerSide
+    deductions: totalEmployeeDeductions,
+
+    // Net salary
+    total: netSalary,
+
+    // Employer contributions
+    employerSide: {
+      pf: pfEmployer,
+      pfAdmin: pfAdminCharges,
+      esi: esiEmployer,
+      lwf: lwfEmployer,
+      bonus: bonusEmployer,
+      gratuity: gratuityEmployer
+    },
+
+    // CTC
+    statutoryCost,
+    totalCTC,
+    variablePart: variablePay,
+
+    // Additional fields
+    allowances: calculatedOtherAllowance,
+    incentives: 0, // Will be calculated separately if needed
+    performanceRewards: 0,
+    gratuity: gratuityEmployer,
+    bonus: bonusEmployer
   };
 }
 

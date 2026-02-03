@@ -84,6 +84,7 @@ async function run() {
         console.log('Generating PDF...');
         const pdfBuffer = await page.pdf({ format: 'A4' });
         console.log('Generated buffer length:', pdfBuffer.length);
+        console.log('PDF header:', pdfBuffer.toString('utf8', 0, 8));
 
         await browser.close();
         fs.writeFileSync('full_test_debug.pdf', pdfBuffer);

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middlewares/auth');
 const { authorize } = require('../middlewares/rbac');
-const { getPayrolls, getPayrollById, createPayroll, updatePayroll, deletePayroll, calculateAndGetPayroll, exportPayrollsPdf, exportPayrollsCsv, exportPayrollsExcel, exportSinglePayrollPdf, exportSinglePayrollExcel } = require('../controllers/payrollController');
+const { getPayrolls, getPayrollById, createPayroll, updatePayroll, deletePayroll, calculateAndGetPayroll, getMyPayrolls, exportPayrollsPdf, exportPayrollsCsv, exportPayrollsExcel, exportSinglePayrollPdf, exportSinglePayrollExcel } = require('../controllers/payrollController');
 
 router.use(authenticate);
 router.use(authorize(['HR Manager', 'Accounts', 'Admin']));
@@ -19,7 +19,13 @@ router.get('/export/pdf', exportPayrollsPdf);
 router.get('/export/csv', exportPayrollsCsv);
 router.get('/export/excel', exportPayrollsExcel);
 
-module.exports = router;
+// Employee routes
+const employeeRouter = express.Router();
+employeeRouter.use(authenticate);
+employeeRouter.use(authorize(['Employee']));
+employeeRouter.get('/my-payrolls', getMyPayrolls);
+
+module.exports = { main: router, employee: employeeRouter };
 
 
 

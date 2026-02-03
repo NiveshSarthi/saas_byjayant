@@ -16,6 +16,28 @@ const payrollSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  // Compliance fields
+  complianceStatus: {
+    type: String,
+    enum: ['Compliant', 'Non-Compliant'],
+    default: 'Non-Compliant'
+  },
+  minimumWage: {
+    type: Number,
+    default: 1500
+  },
+  category: {
+    type: String,
+    default: 'Skilled'
+  },
+  designation: {
+    type: String,
+    required: true
+  },
+  reportingManagerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee'
+  },
   basicSalary: {
     type: Number,
     required: true

@@ -48,6 +48,41 @@ const getPendingGatepasses = async (req, res) => {
   }
 };
 
+const getGatepassesByStatus = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const query = status ? { status } : {};
+    const gatepasses = await Gatepass.find(query).populate('employee').sort({ requestDate: -1 });
+    res.json(gatepasses);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const getGatepassStats = async (req, res) => {
+  try {
+    const stats = await Gatepass.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const result = {
+      total: stats.reduce((sum, stat) => sum + stat.count, 0),
+      pending: stats.find(s => s._id === 'pending')?.count || 0,
+      approved: stats.find(s => s._id === 'approved')?.count || 0,
+      rejected: stats.find(s => s._id === 'rejected')?.count || 0
+    };
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 const approveGatepass = async (req, res) => {
   try {
     const gatepass = await Gatepass.findById(req.params.id);
@@ -90,6 +125,8 @@ module.exports = {
   requestGatepass,
   getMyGatepasses,
   getPendingGatepasses,
+  getGatepassesByStatus,
+  getGatepassStats,
   approveGatepass,
   rejectGatepass,
 };

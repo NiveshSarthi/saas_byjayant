@@ -19,11 +19,13 @@ const checkIn = async (req, res) => {
         employee: employee._id,
         date: today,
         checkInTime: new Date(),
+        checkInLocation: req.body.location,
       });
     } else if (attendance.checkInTime) {
       return res.status(400).json({ message: 'Already checked in today' });
     } else {
       attendance.checkInTime = new Date();
+      attendance.checkInLocation = req.body.location;
     }
 
     await attendance.save();
@@ -53,6 +55,7 @@ const checkOut = async (req, res) => {
     }
 
     attendance.checkOutTime = new Date();
+    attendance.checkOutLocation = req.body.location;
     const diff = (attendance.checkOutTime - attendance.checkInTime) / (1000 * 60 * 60); // hours
     attendance.workingHours = Math.round(diff * 100) / 100;
 

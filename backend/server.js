@@ -29,6 +29,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
+
 // MongoDB connection
 if (process.env.NODE_ENV !== 'test') {
   const mongoURI = process.env.MONGO_URI || 'mongodb://root:vbPT5AthmBzfWQtaH2MOdbj6nx4d9TFUvmHIGm0htv43pNMEMwMbgby82bqiGhzx@72.61.248.175:5444/?directConnection=true';
@@ -49,6 +52,9 @@ app.use('/api/auth', authRoutes);
 const employeeRoutes = require('./routes/employees');
 app.use('/api/hrms/employees', employeeRoutes);
 
+const assetsRoutes = require('./routes/assets');
+app.use('/api/hrms/assets', assetsRoutes);
+
 const recruitmentRoutes = require('./routes/recruitment');
 app.use('/api/hrms/recruitment', recruitmentRoutes);
 
@@ -59,7 +65,8 @@ const atsRoutes = require('./routes/ats');
 app.use('/api/ats', atsRoutes);
 
 const payrollRoutes = require('./routes/payroll');
-app.use('/api/payroll', payrollRoutes);
+app.use('/api/payroll', payrollRoutes.main);
+app.use('/api/payroll', payrollRoutes.employee);
 
 const salesPolicyRoutes = require('./routes/sales-policy');
 app.use('/api/sales-policy', salesPolicyRoutes);
@@ -78,6 +85,12 @@ app.use('/api/attendance', attendanceRoutes);
 
 const gatepassRoutes = require('./routes/gatepass');
 app.use('/api/gatepass', gatepassRoutes);
+
+const notificationRoutes = require('./routes/notifications');
+app.use('/api/notifications', notificationRoutes);
+
+const ticketRoutes = require('./routes/tickets');
+app.use('/api/tickets', ticketRoutes);
 
 const appraisalRoutes = require('./routes/appraisal');
 app.use('/api/hrms/appraisals', appraisalRoutes);

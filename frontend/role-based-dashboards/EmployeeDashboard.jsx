@@ -14,6 +14,16 @@ const EmployeeDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
+  const [gatepassForm, setGatepassForm] = useState({
+    reason: '',
+    destination: '',
+    startTime: '',
+    endTime: '',
+    purpose: ''
+  });
+  const [showGatepassForm, setShowGatepassForm] = useState(false);
+  const [payrolls, setPayrolls] = useState([]);
+  const [showPayrolls, setShowPayrolls] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -99,21 +109,70 @@ const EmployeeDashboard = () => {
     }
   };
 
+  const handleGatepassSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('/api/gatepass', gatepassForm);
+      setGatepassForm({
+        reason: '',
+        destination: '',
+        startTime: '',
+        endTime: '',
+        purpose: ''
+      });
+      setShowGatepassForm(false);
+      alert('Gatepass request submitted successfully!');
+    } catch (error) {
+      console.error('Error submitting gatepass:', error);
+      alert('Failed to submit gatepass request');
+    }
+  };
+
+  const fetchPayrolls = async () => {
+    try {
+      const response = await axios.get('/api/payroll/my-payrolls');
+      setPayrolls(response.data);
+      setShowPayrolls(true);
+    } catch (error) {
+      console.error('Error fetching payrolls:', error);
+      alert('Failed to fetch payrolls');
+    }
+  };
+
   const handleCheckInOut = async () => {
     try {
       setCheckInLoading(true);
+
+      // Get current location
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000
+        });
+      });
+
+      const location = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+      };
+
       if (isCheckedIn) {
-        await axios.post('/api/attendance/check-out');
+        await axios.post('/api/attendance/check-out', { location });
         alert('Checked out successfully!');
       } else {
-        await axios.post('/api/attendance/check-in');
+        await axios.post('/api/attendance/check-in', { location });
         alert('Checked in successfully!');
       }
       setIsCheckedIn(!isCheckedIn);
       fetchDashboardData(); // Refresh data
     } catch (error) {
       console.error('Check-in/out error:', error);
-      alert(`Failed to ${isCheckedIn ? 'check out' : 'check in'}. Please try again.`);
+      if (error.code === 1) {
+        alert('Location access denied. Please enable location services to check in/out.');
+      } else {
+        alert(`Failed to ${isCheckedIn ? 'check out' : 'check in'}. Please try again.`);
+      }
     } finally {
       setCheckInLoading(false);
     }
@@ -287,15 +346,134 @@ const EmployeeDashboard = () => {
         </div>
       </div>
 
+      {/* Gate Pass Request */}
+      {showGatepassForm && (
+        <Card style={{ marginTop: 'var(--space-xl)' }}>
+          <div className="flex-between" style={{ marginBottom: 'var(--space-lg)' }}>
+            <h3 style={{ fontSize: '1rem' }}>Request Gate Pass</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowGatepassForm(false)}>✗</Button>
+          </div>
+          <form onSubmit={handleGatepassSubmit}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 'var(--space-xs)', fontSize: '0.875rem' }}>Reason</label>
+                <select
+                  name="reason"
+                  value={gatepassForm.reason}
+                  onChange={(e) => setGatepassForm({ ...gatepassForm, reason: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: 'var(--space-sm)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}
+                >
+                  <option value="">Select reason</option>
+                  <option value="personal">Personal</option>
+                  <option value="medical">Medical</option>
+                  <option value="official">Official</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 'var(--space-xs)', fontSize: '0.875rem' }}>Destination</label>
+                <input
+                  type="text"
+                  name="destination"
+                  value={gatepassForm.destination}
+                  onChange={(e) => setGatepassForm({ ...gatepassForm, destination: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: 'var(--space-sm)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 'var(--space-xs)', fontSize: '0.875rem' }}>Start Time</label>
+                <input
+                  type="datetime-local"
+                  name="startTime"
+                  value={gatepassForm.startTime}
+                  onChange={(e) => setGatepassForm({ ...gatepassForm, startTime: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: 'var(--space-sm)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 'var(--space-xs)', fontSize: '0.875rem' }}>End Time</label>
+                <input
+                  type="datetime-local"
+                  name="endTime"
+                  value={gatepassForm.endTime}
+                  onChange={(e) => setGatepassForm({ ...gatepassForm, endTime: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: 'var(--space-sm)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}
+                />
+              </div>
+            </div>
+            <div style={{ marginBottom: 'var(--space-lg)' }}>
+              <label style={{ display: 'block', marginBottom: 'var(--space-xs)', fontSize: '0.875rem' }}>Purpose</label>
+              <textarea
+                name="purpose"
+                value={gatepassForm.purpose}
+                onChange={(e) => setGatepassForm({ ...gatepassForm, purpose: e.target.value })}
+                rows={3}
+                style={{ width: '100%', padding: 'var(--space-sm)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)' }}
+              />
+            </div>
+            <Button type="submit" variant="primary">Submit Request</Button>
+          </form>
+        </Card>
+      )}
+
+      {/* Payroll View */}
+      {showPayrolls && (
+        <Card style={{ marginTop: 'var(--space-xl)' }}>
+          <div className="flex-between" style={{ marginBottom: 'var(--space-lg)' }}>
+            <h3 style={{ fontSize: '1rem' }}>My Payslips</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowPayrolls(false)}>✗</Button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+            {payrolls.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No payslips available</p>
+            ) : (
+              payrolls.map((payroll) => (
+                <div
+                  key={payroll._id}
+                  style={{
+                    padding: 'var(--space-md)',
+                    backgroundColor: 'var(--bg-elevated)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: '600', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                      {new Date(payroll.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                      Net Pay: ₹{payroll.netPay?.toLocaleString('en-IN') || 'N/A'}
+                    </div>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={() => window.open(`/api/payroll/${payroll._id}/export`, '_blank')}>
+                    Download PDF
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* Quick Actions */}
       <Card elevated style={{ marginTop: 'var(--space-2xl)' }}>
         <h3 style={{ fontSize: '1rem', marginBottom: 'var(--space-lg)' }}>Quick Actions</h3>
         <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-          <Button variant="secondary">
-            <span>📝</span> Request Time Off
+          <Button variant="secondary" onClick={() => setShowGatepassForm(true)}>
+            <span>🚪</span> Request Gate Pass
+          </Button>
+          <Button variant="secondary" onClick={fetchPayrolls}>
+            <span>💰</span> View Payslips
           </Button>
           <Button variant="secondary">
-            <span>💰</span> View Payslips
+            <span>📝</span> Request Time Off
           </Button>
           <Button variant="secondary">
             <span>👤</span> Update Profile

@@ -1,14 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSidebar } from './Layout';
 import { Icons } from './Icons';
+import axios from 'axios';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { isCollapsed, setIsCollapsed } = useSidebar();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  // Fetch unread notifications count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await axios.get('/api/notifications/unread-count');
+        setUnreadNotifications(response.data.count);
+      } catch (error) {
+        console.error('Error fetching unread notifications:', error);
+      }
+    };
+
+    if (user) {
+      fetchUnreadCount();
+      // Poll for new notifications every 30 seconds
+      const interval = setInterval(fetchUnreadCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const roleTitles = {
     'HR Manager': 'HRMS',
@@ -57,6 +78,8 @@ const Sidebar = () => {
     ],
     Employee: [
       { path: '/employee', label: 'Dashboard', Icon: Icons.Dashboard },
+      { path: '/employee/notifications', label: 'Notifications', Icon: Icons.Bell },
+      { path: '/employee/inbox', label: 'Inbox', Icon: Icons.Mail },
       { path: '/employee/profile', label: 'Profile', Icon: Icons.User },
       { path: '/employee/attendance', label: 'Attendance', Icon: Icons.Clock },
       { path: '/employee/documents', label: 'Documents', Icon: Icons.FileText },
@@ -171,6 +194,8 @@ const Sidebar = () => {
         </div>
       )}
 
+
+
       {/* Navigation */}
       <nav style={{
         flex: 1,
@@ -186,6 +211,7 @@ const Sidebar = () => {
           {currentMenu.map((item, index) => {
             const isActive = location.pathname === item.path;
             const Icon = item.Icon;
+            const showBadge = item.path === '/employee/notifications' && unreadNotifications > 0;
             return (
               <li key={item.path} style={{
                 animationDelay: `${index * 0.05}s`
@@ -196,13 +222,26 @@ const Sidebar = () => {
                   style={{
                     width: '100%',
                     justifyContent: isCollapsed ? 'center' : 'flex-start',
-                    gap: isCollapsed ? '0' : '0.75rem'
+                    gap: isCollapsed ? '0' : '0.75rem',
+                    position: 'relative'
                   }}
                   title={isCollapsed ? item.label : ''}
                 >
                   <Icon />
                   {!isCollapsed && (
                     <span className="animate-slide-in-right">{item.label}</span>
+                  )}
+                  {showBadge && !isCollapsed && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '0.5rem',
+                      right: '0.5rem',
+                      width: '0.5rem',
+                      height: '0.5rem',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--danger-primary)',
+                      border: '2px solid var(--bg-primary)'
+                    }} />
                   )}
                 </button>
               </li>
@@ -249,6 +288,8 @@ const Sidebar = () => {
           )}
         </button>
       </div>
+
+
     </div>
   );
 };

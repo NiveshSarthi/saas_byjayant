@@ -80,18 +80,24 @@ const deletePayroll = async (req, res) => {
 
 const calculateAndGetPayroll = async (req, res) => {
   try {
+    console.log('Received payroll calculation request:', JSON.stringify(req.body, null, 2));
     const {
-      employeeId, month, year, basicSalary, allowances, city,
-      hra, conveyance, lta, medical, pf, gratuity, professionalTax, tds,
-      incentives, performanceRewards, deductions
+      employeeId, month, year, minimumWage,
+      specialAllowance, otherAllowance, targetGross, variablePay
     } = req.body;
-    const calculations = await calculatePayroll(employeeId, month, year, basicSalary, allowances, city, {
-      hra, conveyance, lta, medical, pf, gratuity, professionalTax, tds,
-      incentives, performanceRewards, deductions
-    });
+
+    const allowances = {
+      specialAllowance: specialAllowance || 100,
+      otherAllowance: otherAllowance || 0,
+      targetGross,
+      variablePay: variablePay || 0
+    };
+
+    const calculations = await calculatePayroll(employeeId, month, year, minimumWage, allowances);
     res.json(calculations);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Payroll calculation error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -201,7 +207,7 @@ const exportPayrollsPdf = async (req, res) => {
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
-    await page.setContent(htmlContent);
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
     const pdfBuffer = await page.pdf({
       format: 'A4',
       landscape: true,
@@ -209,12 +215,25 @@ const exportPayrollsPdf = async (req, res) => {
       margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
     });
 
+    await page.close();
     await browser.close();
+
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      throw new Error('Generated PDF buffer is empty');
+    }
+
+    // Validate PDF header
+    if (!pdfBuffer.toString('utf8', 0, 4).startsWith('%PDF-')) {
+      throw new Error('Generated buffer is not a valid PDF');
+    }
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', pdfBuffer.length);
     res.setHeader('Content-Disposition', 'attachment; filename="payroll_report.pdf"');
-    res.send(pdfBuffer);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.end(pdfBuffer);
   } catch (error) {
     console.error('PDF Export Error:', error);
     require('fs').appendFileSync('pdf_error.log', `${new Date().toISOString()} - ${error.stack}\n`);
@@ -401,7 +420,18 @@ const exportSinglePayrollPdf = async (req, res) => {
         populate: { path: 'user', select: 'name email' }
       });
 
-    if (!p) return res.status(404).json({ message: 'Payroll not found' });
+    if (!p) {
+      console.error(`Payroll not found for ID: ${req.params.id}`);
+      return res.status(404).json({ message: 'Payroll not found' });
+    }
+
+    // Validate required payroll data
+    if (!p.month || !p.year) {
+      console.error(`Invalid payroll data for ID: ${req.params.id} - missing month/year`);
+      return res.status(400).json({ message: 'Payroll month and year are required' });
+    }
+
+    console.log(`Generating PDF for payroll ID: ${req.params.id}, Employee: ${p.employee?.user?.name}, Month: ${p.month}, Year: ${p.year}`);
 
     const formatCurrency = (num) => {
       return '₹' + (num || 0).toLocaleString('en-IN', {
@@ -411,6 +441,7 @@ const exportSinglePayrollPdf = async (req, res) => {
     };
 
     const monthName = new Date(p.year, p.month - 1).toLocaleString('default', { month: 'long' });
+    console.log(`Month name generated: ${monthName} for month: ${p.month}, year: ${p.year}`);
     const earnings = [
       { label: 'Basic Salary', value: p.basicSalary || 0 },
       { label: 'House Rent Allowance (HRA)', value: p.hra || 0 },
@@ -589,7 +620,7 @@ const exportSinglePayrollPdf = async (req, res) => {
           <td class="label">Employee Name</td>
           <td>${p.employee?.user?.name || 'N/A'}</td>
           <td class="label">Employee ID</td>
-          <td>${p.employee?._id.toString().slice(-6).toUpperCase() || 'N/A'}</td>
+          <td>${p.employee?._id ? p.employee._id.toString().slice(-6).toUpperCase() : 'N/A'}</td>
         </tr>
         <tr>
           <td class="label">Department</td>
@@ -679,32 +710,57 @@ const exportSinglePayrollPdf = async (req, res) => {
     </html>
     `;
 
+    console.log('Launching Puppeteer for single payroll PDF...');
     const browser = await puppeteer.launch({
-      headless: true, // Simplified headless flag
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
     const page = await browser.newPage();
-    await page.setContent(htmlContent); // Removed waitUntil for faster, more reliable rendering
+    console.log('Setting HTML content...');
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    console.log('HTML content set, generating PDF...');
 
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
     });
+    console.log('PDF generated successfully');
 
+    await page.close();
     await browser.close();
 
     if (!pdfBuffer || pdfBuffer.length === 0) {
       throw new Error('Generated PDF buffer is empty');
     }
 
-    const safeFilename = `salary_slip_${(p.employee?.user?.name || 'employee').replace(/[^a-zA-Z0-0]/g, '_')}_${p.month}_${p.year}.pdf`;
+    // Validate PDF header - be more lenient
+    const header = pdfBuffer.toString('utf8', 0, 8);
+    console.log('PDF buffer length:', pdfBuffer.length);
+    console.log('PDF header:', header);
+
+    // Check for PDF signature (more flexible)
+    if (!header.includes('%PDF') && pdfBuffer.length < 1000) {
+      console.error('Buffer does not appear to be a PDF. Header:', header, 'Length:', pdfBuffer.length);
+      throw new Error('Generated buffer is not a valid PDF');
+    }
+
+    // Additional check: ensure buffer is reasonable size for a PDF
+    if (pdfBuffer.length < 500) {
+      console.error('PDF buffer too small:', pdfBuffer.length, 'bytes');
+      throw new Error('Generated PDF is too small to be valid');
+    }
+
+    const safeFilename = `salary_slip_${(p.employee?.user?.name || 'employee').replace(/[^a-zA-Z0-9]/g, '_')}_${p.month}_${p.year}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', pdfBuffer.length);
     res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
-    res.send(pdfBuffer);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.end(pdfBuffer);
 
   } catch (error) {
     console.error('Single PDF Export Error:', error);
@@ -860,6 +916,21 @@ const exportSinglePayrollExcel = async (req, res) => {
   }
 };
 
+const getMyPayrolls = async (req, res) => {
+  try {
+    const Employee = require('../models/Employee');
+    const employee = await Employee.findOne({ user: req.user._id });
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    const payrolls = await Payroll.find({ employee: employee._id }).sort({ createdAt: -1 });
+    res.json(payrolls);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getPayrolls,
   getPayrollById,
@@ -867,6 +938,7 @@ module.exports = {
   updatePayroll,
   deletePayroll,
   calculateAndGetPayroll,
+  getMyPayrolls,
   exportPayrollsPdf,
   exportPayrollsCsv,
   exportPayrollsExcel,

@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import SYNDITECHDashboard from './pages/SYNDITECHDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import NotificationPanel from './components/shared/NotificationPanel';
+import InboxPanel from './components/shared/InboxPanel';
 import HRDashboard from '../role-based-dashboards/HRDashboard';
 import EmployeeDashboard from '../role-based-dashboards/EmployeeDashboard';
 import AdminDashboard from '../role-based-dashboards/AdminDashboard';
@@ -107,6 +109,8 @@ function App() {
           <Route path="/employee" element={<ProtectedRoute allowedRoles={['Employee']}><EmployeeDashboard /></ProtectedRoute>} />
           <Route path="/employee/profile" element={<ProtectedRoute allowedRoles={['Employee']}><EmployeeForm /></ProtectedRoute>} />
           <Route path="/employee/attendance" element={<ProtectedRoute allowedRoles={['Employee']}><CheckInOut /></ProtectedRoute>} />
+          <Route path="/employee/notifications" element={<ProtectedRoute allowedRoles={['Employee']}><NotificationPanel /></ProtectedRoute>} />
+          <Route path="/employee/inbox" element={<ProtectedRoute allowedRoles={['Employee']}><InboxPanel /></ProtectedRoute>} />
           <Route path="/employee/gatepass" element={<ProtectedRoute allowedRoles={['Employee']}><GatepassRequest /></ProtectedRoute>} />
           <Route path="/employee/documents" element={<ProtectedRoute allowedRoles={['Employee']}><DocumentUpload /></ProtectedRoute>} />
 

@@ -5,7 +5,7 @@ import Card from '../../src/components/shared/Card';
 import Button from '../../src/components/shared/Button';
 import CustomSelect from '../../src/components/shared/CustomSelect';
 
-const JDForm = ({ onSubmit }) => {
+const JDForm = ({ onSubmit = () => {} }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',

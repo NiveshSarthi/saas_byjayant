@@ -15,33 +15,72 @@ const PayrollCalculator = () => {
     employeeId: '',
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
-    ctc: 0, // Base CTC
-    variablePart: 0,
+    minimumWage: "1500",
+    specialAllowance: "100",
+    otherAllowance: "",
+    targetGross: "",
+    variablePart: "",
+    category: 'Skilled'
+  });
+  const [calculation, setCalculation] = useState({
+    // Compliance
+    complianceStatus: 'Non-Compliant',
+    minimumWage: 1500,
     category: 'Skilled',
+    designation: '',
+
+    // Earnings
     basicSalary: 0,
     hra: 0,
     conveyance: 0,
-    lta: 0,
-    medical: 0,
+    specialAllowance: 0,
+    otherAllowance: 0,
+    grossSalary: 0,
+
+    // Deductions
     pf: 0,
     esi: 0,
+    lwf: 0,
+    professionalTax: 0,
+    deductions: 0,
+
+    // Net salary
+    total: 0,
+
+    // Employer side
+    employerSide: {
+      pf: 0,
+      pfAdmin: 0,
+      esi: 0,
+      lwf: 0,
+      bonus: 0,
+      gratuity: 0
+    },
+
+    // CTC
+    statutoryCost: 0,
+    totalCTC: 0,
+    variablePart: 0,
     lwf: 0,
     bonus: 0,
     gratuity: 0,
     professionalTax: 0,
     tds: 0,
-    allowances: 0,
     incentives: 0,
     performanceRewards: 0,
     deductions: 0,
-    presentDays: 0,
-    lateArrivals: 0,
-    earlyDepartures: 0,
-    cv: 0,
-    numberOfSales: 0,
-    city: 'Metro'
+    grossSalary: 0,
+    totalCTC: 0,
+    total: 0,
+    employerSide: {
+      pf: 0,
+      pfAdmin: 0,
+      esi: 0,
+      lwf: 0,
+      bonus: 0,
+      gratuity: 0
+    }
   });
-  const [calculation, setCalculation] = useState(null);
   const [editMode, setEditMode] = useState({});
   const [autoCalculate, setAutoCalculate] = useState(true);
 
@@ -87,7 +126,7 @@ const PayrollCalculator = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let val = (name === 'employeeId' || name === 'city' || name === 'category') ? value : (parseFloat(value) || 0);
+    let val = (name === 'employeeId' || name === 'city' || name === 'category') ? value : (value === "" ? "" : parseFloat(value) || 0);
 
     let newFormData = { ...formData, [name]: val };
 
@@ -109,6 +148,36 @@ const PayrollCalculator = () => {
     setFormData(newFormData);
   };
 
+  const handleSetCalculation = (data) => {
+    setCalculation({
+      basicSalary: data.basicSalary ?? 0,
+      hra: data.hra ?? 0,
+      conveyance: data.conveyance ?? 0,
+      allowances: data.allowances ?? 0,
+      pf: data.pf ?? 0,
+      esi: data.esi ?? 0,
+      lwf: data.lwf ?? 0,
+      bonus: data.bonus ?? 0,
+      gratuity: data.gratuity ?? 0,
+      professionalTax: data.professionalTax ?? 0,
+      tds: data.tds ?? 0,
+      incentives: data.incentives ?? 0,
+      performanceRewards: data.performanceRewards ?? 0,
+      deductions: data.deductions ?? 0,
+      grossSalary: data.grossSalary ?? 0,
+      totalCTC: data.totalCTC ?? 0,
+      total: data.total ?? 0,
+      employerSide: {
+        pf: data.employerSide?.pf ?? 0,
+        pfAdmin: data.employerSide?.pfAdmin ?? 0,
+        esi: data.employerSide?.esi ?? 0,
+        lwf: data.employerSide?.lwf ?? 0,
+        bonus: data.employerSide?.bonus ?? 0,
+        gratuity: data.employerSide?.gratuity ?? 0
+      }
+    });
+  };
+
   const toggleEditMode = (field) => {
     setEditMode({ ...editMode, [field]: !editMode[field] });
   };
@@ -121,61 +190,24 @@ const PayrollCalculator = () => {
         return;
       }
 
-      const ctc = formData.ctc;
-      const category = formData.category;
-      const minWage = category === 'Skilled' ? 15472 : 11275;
-      const basic = minWage;
-
-      // Employer Side
-      const empPF = (basic * 0.12);
-      const empPFAdmin = (basic * 0.01);
-      const empGratuity = (basic * 0.0481);
-      const empBonus = (basic * 0.0833);
-      const empLWF = category === 'Skilled' ? 68 : 48;
-
-      let gross = ctc - (empPF + empPFAdmin + empGratuity + empBonus + empLWF);
-      let empESI = 0;
-      let employeeESI = 0;
-
-      if (gross <= 21000) {
-        gross = (ctc - (empPF + empPFAdmin + empGratuity + empBonus + empLWF)) / 1.0325;
-        empESI = gross * 0.0325;
-        employeeESI = gross * 0.0075;
-      }
-
-      const statutoryCost = empPF + empPFAdmin + empESI + empLWF + empBonus + empGratuity;
-
-      const hra = category === 'Skilled' ? basic * 0.5 : (gross - basic > 800 ? 836 : 0);
-      const conveyance = category === 'Skilled' ? basic * 0.15 : 0;
-      const specialAllowance = 1000;
-      const otherAllowance = Math.max(0, gross - (basic + hra + conveyance + specialAllowance));
-
-      const employeePF = basic * 0.12;
-      const employeeLWF = category === 'Skilled' ? 34 : 24;
-
-      let calculatedData = {
-        ...formData,
-        basicSalary: basic,
-        hra: editMode.hra ? formData.hra : hra,
-        conveyance: editMode.conveyance ? formData.conveyance : conveyance,
-        allowances: editMode.allowances ? formData.allowances : (specialAllowance + otherAllowance),
-        pf: editMode.pf ? formData.pf : employeePF,
-        esi: employeeESI,
-        lwf: employeeLWF,
-        bonus: empBonus,
-        gratuity: empGratuity,
-        grossSalary: gross,
-        statutoryCost,
-        totalCTC: ctc + formData.variablePart,
-        employerSide: {
-          pf: empPF,
-          pfAdmin: empPFAdmin,
-          esi: empESI,
-          lwf: empLWF,
-          bonus: empBonus,
-          gratuity: empGratuity
-        }
+      // Call the new compliance-based backend API
+      const requestData = {
+        employeeId: formData.employeeId,
+        month: formData.month,
+        year: formData.year,
+        minimumWage: formData.minimumWage || 1500, // Use provided MW or default
+        specialAllowance: formData.specialAllowance || 100,
+        otherAllowance: formData.otherAllowance || 0,
+        targetGross: formData.targetGross,
+        variablePay: formData.variablePart || 0
       };
+
+      console.log('Sending calculation request:', requestData);
+
+      const response = await axios.post('/api/payroll/calculate', requestData);
+      const calculatedData = response.data;
+
+      console.log('Received calculation result:', calculatedData);
 
       // TDS Calculation
       if (autoCalculate && !editMode.tds) {
@@ -215,11 +247,11 @@ const PayrollCalculator = () => {
       calculatedData.deductions = (formData.deductions || 0) + (totalDeductionDays * dailySalary);
 
       // Net Total: Gross + Incentives + Rewards - Deductions (Tax, Statutory, Attendance)
-      let total = (gross + calculatedData.incentives + calculatedData.performanceRewards) - (calculatedData.pf + calculatedData.esi + calculatedData.lwf + calculatedData.tds + calculatedData.professionalTax + (totalDeductionDays * dailySalary));
+      let total = (gross + (calculatedData.incentives ?? 0) + (calculatedData.performanceRewards ?? 0)) - ((calculatedData.pf ?? 0) + (calculatedData.esi ?? 0) + (calculatedData.lwf ?? 0) + (calculatedData.tds ?? 0) + (calculatedData.professionalTax ?? 0) + (totalDeductionDays * dailySalary));
 
       calculatedData.total = Math.max(0, total);
 
-      setCalculation(calculatedData);
+      handleSetCalculation(calculatedData);
       console.log('Calculation updated:', calculatedData);
     } catch (error) {
       console.error('Error calculating payroll:', error);
@@ -245,7 +277,7 @@ const PayrollCalculator = () => {
 
       const response = await axios.post('/api/payroll', cleanData);
       fetchPayrolls();
-      setCalculation(null);
+      handleSetCalculation({}); // Reset calculation state using the handler
       setFormData({
         employeeId: '',
         month: new Date().getMonth() + 1,
@@ -386,16 +418,42 @@ const PayrollCalculator = () => {
               </select>
             </div>
 
-            {/* CTC / Monthly Base */}
+            {/* Minimum Wage */}
             <div className="input-group">
-              <label htmlFor="ctc">Monthly Base / CTC</label>
+              <label htmlFor="minimumWage">Minimum Wages (Basic+DA)</label>
               <input
-                id="ctc"
+                id="minimumWage"
                 type="number"
-                name="ctc"
-                value={formData.ctc}
+                name="minimumWage"
+                value={formData.minimumWage}
                 onChange={handleChange}
-                placeholder="Enter CTC amount"
+                placeholder="Enter minimum wage (default: 1500)"
+              />
+            </div>
+
+            {/* Special Allowance */}
+            <div className="input-group">
+              <label htmlFor="specialAllowance">Special Allowance</label>
+              <input
+                id="specialAllowance"
+                type="number"
+                name="specialAllowance"
+                value={formData.specialAllowance}
+                onChange={handleChange}
+                placeholder="Enter special allowance (default: 100)"
+              />
+            </div>
+
+            {/* Target Gross */}
+            <div className="input-group">
+              <label htmlFor="targetGross">Target Gross Salary</label>
+              <input
+                id="targetGross"
+                type="number"
+                name="targetGross"
+                value={formData.targetGross}
+                onChange={handleChange}
+                placeholder="Enter target gross salary"
               />
             </div>
 
@@ -441,7 +499,7 @@ const PayrollCalculator = () => {
                     id="basicSalary"
                     type="number"
                     name="basicSalary"
-                    value={formData.basicSalary}
+                    value={formData.basicSalary ?? ""}
                     onChange={handleChange}
                   />
                 </div>
@@ -455,7 +513,7 @@ const PayrollCalculator = () => {
                     id="conveyance"
                     type="number"
                     name="conveyance"
-                    value={calculation?.conveyance || formData.conveyance}
+                    value={calculation?.conveyance ?? formData.conveyance ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.conveyance}
                     style={{ opacity: editMode.conveyance ? 1 : 0.7 }}
@@ -479,7 +537,7 @@ const PayrollCalculator = () => {
                     id="lta"
                     type="number"
                     name="lta"
-                    value={calculation?.lta || formData.lta}
+                    value={calculation?.lta ?? formData.lta ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.lta}
                     style={{ opacity: editMode.lta ? 1 : 0.7 }}
@@ -503,7 +561,7 @@ const PayrollCalculator = () => {
                     id="medical"
                     type="number"
                     name="medical"
-                    value={calculation?.medical || formData.medical}
+                    value={calculation?.medical ?? formData.medical ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.medical}
                     style={{ opacity: editMode.medical ? 1 : 0.7 }}
@@ -527,7 +585,7 @@ const PayrollCalculator = () => {
                     id="pf"
                     type="number"
                     name="pf"
-                    value={calculation?.pf || formData.pf}
+                    value={calculation?.pf ?? formData.pf ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.pf}
                     style={{ opacity: editMode.pf ? 1 : 0.7 }}
@@ -551,7 +609,7 @@ const PayrollCalculator = () => {
                     id="esi"
                     type="number"
                     name="esi"
-                    value={calculation?.esi || formData.esi}
+                    value={calculation?.esi ?? formData.esi ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.esi}
                     style={{ opacity: editMode.esi ? 1 : 0.7 }}
@@ -575,7 +633,7 @@ const PayrollCalculator = () => {
                     id="lwf"
                     type="number"
                     name="lwf"
-                    value={calculation?.lwf || formData.lwf}
+                    value={calculation?.lwf ?? formData.lwf ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.lwf}
                     style={{ opacity: editMode.lwf ? 1 : 0.7 }}
@@ -599,7 +657,7 @@ const PayrollCalculator = () => {
                     id="professionalTax"
                     type="number"
                     name="professionalTax"
-                    value={calculation?.professionalTax || formData.professionalTax}
+                    value={calculation?.professionalTax ?? formData.professionalTax ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.professionalTax}
                     style={{ opacity: editMode.professionalTax ? 1 : 0.7 }}
@@ -623,7 +681,7 @@ const PayrollCalculator = () => {
                     id="tds"
                     type="number"
                     name="tds"
-                    value={calculation?.tds || formData.tds}
+                    value={calculation?.tds ?? formData.tds ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.tds}
                     style={{ opacity: editMode.tds ? 1 : 0.7 }}
@@ -647,7 +705,7 @@ const PayrollCalculator = () => {
                     id="allowances"
                     type="number"
                     name="allowances"
-                    value={formData.allowances}
+                    value={formData.allowances ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.allowances}
                     style={{ opacity: editMode.allowances ? 1 : 0.7 }}
@@ -671,7 +729,7 @@ const PayrollCalculator = () => {
                     id="deductions"
                     type="number"
                     name="deductions"
-                    value={formData.deductions}
+                    value={formData.deductions ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.deductions}
                     style={{ opacity: editMode.deductions ? 1 : 0.7 }}
@@ -695,7 +753,7 @@ const PayrollCalculator = () => {
                     id="presentDays"
                     type="number"
                     name="presentDays"
-                    value={formData.presentDays}
+                    value={formData.presentDays ?? ""}
                     onChange={handleChange}
                   />
                 </div>
@@ -705,7 +763,7 @@ const PayrollCalculator = () => {
                     id="lateArrivals"
                     type="number"
                     name="lateArrivals"
-                    value={formData.lateArrivals}
+                    value={formData.lateArrivals ?? ""}
                     onChange={handleChange}
                   />
                 </div>
@@ -715,7 +773,7 @@ const PayrollCalculator = () => {
                     id="earlyDepartures"
                     type="number"
                     name="earlyDepartures"
-                    value={formData.earlyDepartures}
+                    value={formData.earlyDepartures ?? ""}
                     onChange={handleChange}
                   />
                 </div>
@@ -736,7 +794,7 @@ const PayrollCalculator = () => {
                   id="numberOfSales"
                   type="number"
                   name="numberOfSales"
-                  value={formData.numberOfSales}
+                  value={formData.numberOfSales ?? ""}
                   onChange={handleChange}
                 />
               </div>
@@ -747,7 +805,7 @@ const PayrollCalculator = () => {
                   id="cv"
                   type="number"
                   name="cv"
-                  value={formData.cv}
+                  value={formData.cv ?? ""}
                   onChange={handleChange}
                   placeholder="Enter CV amount"
                 />
@@ -761,7 +819,7 @@ const PayrollCalculator = () => {
                     id="incentives"
                     type="number"
                     name="incentives"
-                    value={calculation?.incentives || formData.incentives}
+                    value={calculation?.incentives ?? formData.incentives ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.incentives}
                     style={{ opacity: editMode.incentives ? 1 : 0.7 }}
@@ -785,7 +843,7 @@ const PayrollCalculator = () => {
                     id="performanceRewards"
                     type="number"
                     name="performanceRewards"
-                    value={calculation?.performanceRewards || formData.performanceRewards}
+                    value={calculation?.performanceRewards ?? formData.performanceRewards ?? ""}
                     onChange={handleChange}
                     disabled={!editMode.performanceRewards}
                     style={{ opacity: editMode.performanceRewards ? 1 : 0.7 }}
@@ -848,27 +906,29 @@ const PayrollCalculator = () => {
                 </h3>
                 <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Minimum Wages (Basic+DA)</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.basicSalary.toLocaleString()}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Minimum Wages (BASIC+DA)</span>
+                    <span style={{ fontWeight: '500' }}>₹{calculation.basicSalary?.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>HRA</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.hra.toLocaleString()}</span>
+                    <span style={{ fontWeight: '500' }}>₹{calculation.hra?.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Conveyance</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.conveyance.toLocaleString()}</span>
+                    <span style={{ fontWeight: '500' }}>₹{calculation.conveyance?.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Other Allowances</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.allowances.toLocaleString()}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Special Allowance</span>
+                    <span style={{ fontWeight: '500' }}>₹{calculation.specialAllowance?.toLocaleString()}</span>
                   </div>
-                  {calculation.incentives > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--accent-primary)' }}>
-                      <span>Sales Incentives</span>
-                      <span style={{ fontWeight: '600' }}>₹{calculation.incentives.toLocaleString()}</span>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Other Allowance</span>
+                    <span style={{ fontWeight: '500' }}>₹{calculation.otherAllowance?.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--border-subtle)' }}>
+                    <span>Total Gross Wage per month</span>
+                    <span>₹{calculation.grossSalary?.toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
 
@@ -879,27 +939,29 @@ const PayrollCalculator = () => {
                 </h3>
                 <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>PF (Employee)</span>
-                    <span style={{ color: '#EF4444' }}>-₹{calculation.pf.toLocaleString()}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>PF Contribution (12%) (BASIC & D.A)</span>
+                    <span style={{ color: '#EF4444' }}>-₹{calculation.pf?.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>ESIC (0.75%)</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>ESIC (0.75%) (TOTAL GROSS)</span>
                     <span style={{ color: '#EF4444' }}>-₹{calculation.esi?.toLocaleString() || '0'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>LWF (Employee)</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Employee Contribution - LWF</span>
                     <span style={{ color: '#EF4444' }}>-₹{calculation.lwf?.toLocaleString() || '0'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>TDS</span>
-                    <span style={{ color: '#EF4444' }}>-₹{calculation.tds.toLocaleString()}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Professional Tax</span>
+                    <span style={{ color: '#EF4444' }}>-₹{calculation.professionalTax?.toLocaleString() || '0'}</span>
                   </div>
-                  {calculation.deductions > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Attendance Deductions</span>
-                      <span style={{ color: '#EF4444' }}>-₹{calculation.deductions.toLocaleString()}</span>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--border-subtle)' }}>
+                    <span>Employees deduction</span>
+                    <span style={{ color: '#EF4444' }}>₹{calculation.deductions?.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1em', color: 'var(--accent-primary)' }}>
+                    <span>Net Salary in Hand</span>
+                    <span>₹{calculation.total?.toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -907,31 +969,64 @@ const PayrollCalculator = () => {
             <div style={{ marginTop: 'var(--space-2xl)', paddingTop: 'var(--space-xl)', borderTop: '2px solid var(--border-subtle)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 'var(--space-xl)' }}>
               <div>
                 <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-tertiary)', marginBottom: 'var(--space-md)', textTransform: 'uppercase' }}>
-                  Statutory Obligations (Employer)
+                  Statutory obligation on Minimum wages
                 </h3>
                 <div style={{ display: 'grid', gap: 'var(--space-sm)', fontSize: '0.875rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>PF & Admin (13%)</span>
-                    <span>₹{(calculation.employerSide?.pf + calculation.employerSide?.pfAdmin).toLocaleString()}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>PF 12% on Basic + DA</span>
+                    <span>₹{calculation.employerSide?.pf.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>ESI (3.25%)</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>PF Admin Charges</span>
+                    <span>₹{calculation.employerSide?.pfAdmin.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>ESI (3.25% on Gross)</span>
                     <span>₹{calculation.employerSide?.esi.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Bonus (8.33%)</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>LWF to be included as applicable</span>
+                    <span>₹{calculation.employerSide?.lwf.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Bonus (8.33% on Minimum Wages or INR 7000 whichever is higher)</span>
                     <span>₹{calculation.employerSide?.bonus.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Gratuity (4.81%)</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Gratuity</span>
                     <span>₹{calculation.employerSide?.gratuity.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--border-subtle)' }}>
+                    <span>Statutory Cost</span>
+                    <span>₹{calculation.statutoryCost?.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
 
               <div style={{ backgroundColor: 'rgba(255, 122, 24, 0.1)', padding: 'var(--space-lg)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-xs)' }}>Net Salary in Hand</span>
-                <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--accent-primary)' }}>₹{calculation.total.toLocaleString()}</span>
+                <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--accent-primary)' }}>₹{calculation.total?.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* CTC Breakdown */}
+            <div style={{ marginTop: 'var(--space-xl)', padding: 'var(--space-lg)', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: 'var(--space-lg)', textAlign: 'center' }}>
+                CTC CALCULATION
+              </h3>
+              <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>CTC of Employee</span>
+                  <span style={{ fontWeight: '500' }}>₹{(calculation.grossSalary + calculation.statutoryCost)?.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Variable Part</span>
+                  <span style={{ fontWeight: '500' }}>₹{calculation.variablePart?.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1em', paddingTop: 'var(--space-sm)', borderTop: '2px solid var(--border-subtle)' }}>
+                  <span>Total CTC of Employee</span>
+                  <span>₹{calculation.totalCTC?.toLocaleString()}</span>
+                </div>
               </div>
             </div>
 
@@ -984,17 +1079,17 @@ const PayrollCalculator = () => {
                     <td>{payroll.employee?.user?.name || 'N/A'}</td>
                     <td>{payroll.month}/{payroll.year}</td>
                     <td style={{ fontWeight: '600' }}>₹{(payroll.totalCTC || 0).toLocaleString()}</td>
-                    <td>₹{payroll.basicSalary.toLocaleString()}</td>
-                    <td>₹{payroll.hra.toLocaleString()}</td>
-                    <td>₹{payroll.conveyance.toLocaleString()}</td>
+                    <td>₹{(payroll.basicSalary || 0).toLocaleString()}</td>
+                    <td>₹{(payroll.hra || 0).toLocaleString()}</td>
+                    <td>₹{(payroll.conveyance || 0).toLocaleString()}</td>
                     <td style={{ color: '#EF4444' }}>₹{(payroll.esi || 0).toLocaleString()}</td>
                     <td style={{ color: '#EF4444' }}>₹{(payroll.lwf || 0).toLocaleString()}</td>
-                    <td style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>₹{payroll.incentives.toLocaleString()}</td>
-                    <td style={{ color: 'var(--accent-primary)' }}>₹{payroll.performanceRewards.toLocaleString()}</td>
-                    <td style={{ color: '#EF4444' }}>-₹{payroll.pf.toLocaleString()}</td>
-                    <td style={{ color: '#EF4444' }}>-₹{payroll.professionalTax.toLocaleString()}</td>
-                    <td style={{ color: '#EF4444' }}>-₹{payroll.tds.toLocaleString()}</td>
-                    <td style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--text-primary)' }}>₹{payroll.total.toLocaleString()}</td>
+                    <td style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>₹{(payroll.incentives || 0).toLocaleString()}</td>
+                    <td style={{ color: 'var(--accent-primary)' }}>₹{(payroll.performanceRewards || 0).toLocaleString()}</td>
+                    <td style={{ color: '#EF4444' }}>-₹{(payroll.pf || 0).toLocaleString()}</td>
+                    <td style={{ color: '#EF4444' }}>-₹{(payroll.professionalTax || 0).toLocaleString()}</td>
+                    <td style={{ color: '#EF4444' }}>-₹{(payroll.tds || 0).toLocaleString()}</td>
+                    <td style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--text-primary)' }}>₹{(payroll.total || 0).toLocaleString()}</td>
                     <td>
                       <span className={`badge ${payroll.isLocked ? 'badge-success' : 'badge-warning'}`}>
                         {payroll.isLocked ? 'Locked' : 'Open'}

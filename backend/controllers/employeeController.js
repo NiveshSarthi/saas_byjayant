@@ -52,6 +52,8 @@ const createEmployee = async (req, res) => {
       status, level, reportsTo, salary, phone, isNew, isIntern
     } = req.body;
 
+    let generatedPassword = null;
+
     // 1. Resolve User
     let user;
     if (userId && userId.trim() !== '') {
@@ -68,7 +70,8 @@ const createEmployee = async (req, res) => {
         if (!role) {
           return res.status(400).json({ success: false, message: 'Default "Employee" role not found in database. Please run seed script.' });
         }
-        const hashedPassword = await bcrypt.hash('password123', 10);
+        generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+        const hashedPassword = await bcrypt.hash(generatedPassword, 10);
         user = new User({
           email: email.toLowerCase(),
           password: hashedPassword,
@@ -124,7 +127,11 @@ const createEmployee = async (req, res) => {
     console.log('Created new employee:', employee._id);
 
     const populatedEmployee = await Employee.findById(employee._id).populate('user');
-    res.status(201).json(populatedEmployee);
+    const response = { ...populatedEmployee.toObject() };
+    if (generatedPassword) {
+      response.generatedPassword = generatedPassword;
+    }
+    res.status(201).json(response);
   } catch (error) {
     console.error('CRITICAL Error in createEmployee:', error);
 
@@ -368,6 +375,40 @@ const completeOnboarding = async (req, res) => {
   }
 };
 
+const getAllAssets = async (req, res) => {
+  try {
+    const assets = await Asset.find().populate('assignedTo', 'user').sort({ createdAt: -1 });
+    res.json(assets);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const getAssetStats = async (req, res) => {
+  try {
+    const stats = await Asset.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const result = {
+      total: stats.reduce((sum, stat) => sum + stat.count, 0),
+      available: stats.find(s => s._id === 'Available')?.count || 0,
+      assigned: stats.find(s => s._id === 'Assigned')?.count || 0,
+      maintenance: stats.find(s => s._id === 'Under Maintenance')?.count || 0,
+      retired: stats.find(s => s._id === 'Retired')?.count || 0
+    };
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getAllEmployees,
   getEmployeeById,
@@ -377,6 +418,8 @@ module.exports = {
   deleteEmployee,
   addDocument,
   addAsset,
+  getAllAssets,
+  getAssetStats,
   updateOnboarding,
   completeOnboarding,
   exportEmployeesPdf,
