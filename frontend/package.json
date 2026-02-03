@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "clean": "rm -rf node_modules dist",
+    "rebuild": "npm run clean && npm install && npm run build"
   },
   "dependencies": {
     "axios": "^1.13.4",

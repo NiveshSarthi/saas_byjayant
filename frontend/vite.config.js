@@ -12,6 +12,21 @@ export default defineConfig({
       '@shared': fileURLToPath(new URL('./src/components/shared', import.meta.url)),
     },
   },
+  build: {
+    sourcemap: false,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': {
