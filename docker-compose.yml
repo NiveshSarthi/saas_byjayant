@@ -5,8 +5,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     environment:
       - NODE_ENV=production
       - PORT=5000
@@ -22,8 +22,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - backend
     networks:
@@ -31,8 +31,8 @@ services:
 
   mongo:
     image: mongo:7-jammy
-    ports:
-      - "27017:27017"
+    expose:
+      - "27017"
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=password
