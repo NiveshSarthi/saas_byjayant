@@ -115,7 +115,7 @@ if (process.env.NODE_ENV !== 'test') {
   const PORT = process.env.PORT || 5000;
 
   console.log('About to start server, NODE_ENV:', process.env.NODE_ENV, 'PORT:', PORT);
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
   });
 
