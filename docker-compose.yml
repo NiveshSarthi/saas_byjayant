@@ -10,8 +10,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=6000
-      - MONGO_URI=mongodb://root:vbPT5AthmBzfWQtaH2MOdbj6nx4d9TFUvmHIGm0htv43pNMEMwMbgby82bqiGhzx@72.61.248.175:5444/?authSource=admin&directConnection=true
-      - JWT_SECRET=your_super_secret_jwt_key_here_change_this_in_production
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
     volumes:
       - backend-uploads:/app/uploads
     depends_on:
