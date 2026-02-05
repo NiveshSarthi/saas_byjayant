@@ -1,10 +1,10 @@
 # Build stage
-FROM node:18-alpine as build
+FROM node:18 as build
 
 WORKDIR /app
 
-# Clear npm cache and ensure clean environment
-RUN npm cache clean --force && rm -rf node_modules package-lock.json
+# Verify Node.js and npm are available
+RUN node --version && npm --version
 
 # Copy package files
 COPY package*.json ./
@@ -29,7 +29,7 @@ RUN npm run build
 RUN ls -la dist/
 
 # Production stage
-FROM nginx:alpine
+FROM nginx
 
 # Copy built files to nginx
 COPY --from=build /app/dist /usr/share/nginx/html
