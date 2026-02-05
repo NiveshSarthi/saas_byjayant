@@ -4,6 +4,9 @@ FROM node:18 as build
 
 WORKDIR /app
 
+# Set NODE_ENV to development for building to include devDependencies
+ENV NODE_ENV=development
+
 # Verify Node.js and npm are available
 RUN node --version && /usr/local/bin/npm --version
 
