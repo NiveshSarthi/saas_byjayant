@@ -32,7 +32,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node --version || exit 1
 
 # Expose port
-EXPOSE 5000
+EXPOSE 6000
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
