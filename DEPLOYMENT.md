@@ -60,6 +60,19 @@ docker-compose up -d --build
 docker-compose -f docker-compose.yml up -d
 ```
 
+### 3. Coolify Deployment
+Coolify supports Docker Compose deployments. Follow these steps:
+
+1. **Connect Repository**: Link your Git repository to Coolify
+2. **Create Service**: Choose "Docker Compose" as the deployment method
+3. **Configure Environment**:
+   - Set `JWT_SECRET` to a secure random string
+   - Optionally configure email settings
+4. **Deploy**: Coolify will automatically build and deploy using the docker-compose.yml
+5. **Access**: The frontend will be available on the configured domain, backend APIs on port 5000
+
+**Note**: Coolify handles port mapping automatically. The frontend (port 80) serves as the main application, with backend APIs proxied internally.
+
 ### 3. Health Checks
 ```bash
 # Backend health check
@@ -73,6 +86,8 @@ curl http://your-domain/health
   "database": "connected"
 }
 ```
+
+**Note**: Health checks are configured in docker-compose.yml for proper service startup ordering.
 
 ## Service Configuration
 

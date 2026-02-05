@@ -1,8 +1,8 @@
 # Use Node.js 18 Alpine for smaller image
 FROM node:18-alpine
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init and curl for proper signal handling and health checks
+RUN apk add --no-cache dumb-init curl
 
 # Create app user for security
 RUN addgroup -g 1001 -S nodejs && \
