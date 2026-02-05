@@ -50,6 +50,14 @@ const payrollSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  specialAllowance: {
+    type: Number,
+    default: 0
+  },
+  otherAllowance: {
+    type: Number,
+    default: 0
+  },
   lta: {
     type: Number,
     default: 0
@@ -133,6 +141,27 @@ const payrollSchema = new mongoose.Schema({
   isLocked: {
     type: Boolean,
     default: false
+  },
+  // Detailed Incentive Structure
+  incentiveDetails: {
+    salesCount: { type: Number, default: 0 },
+    eligibleAmount: { type: Number, default: 0 },
+    unlockedAmount: { type: Number, default: 0 },
+    lockedAmount: { type: Number, default: 0 },
+    managerCommission: { type: Number, default: 0 },
+    salaryReward: { type: Number, default: 0 }, // For the +50% Salary Reward
+    comments: String
+  },
+  // Exact Attendance Breakdown
+  attendanceDetails: {
+    presentDays: { type: Number, default: 0 },
+    weeklyOffs: { type: Number, default: 0 },
+    leaves: { type: Number, default: 0 },
+    halfDays: { type: Number, default: 0 },
+    absentDays: { type: Number, default: 0 },
+    lateMarks: { type: Number, default: 0 },
+    paidDays: { type: Number, default: 0 }, // The final calculated paid days
+    dailyRate: { type: Number, default: 0 }
   },
   employerSide: {
     pf: Number,

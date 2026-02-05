@@ -27,32 +27,56 @@ const SetFields = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      // For now, we'll use mock data since we don't have a backend for this yet
-      // In a real implementation, these would come from the database
-      setDepartments(['Sales', 'Marketing', 'HR', 'Administration', 'Accounts', 'IT', 'Operations']);
-      setPositions([
-        { id: 1, name: 'Software Engineer', department: 'IT', level: 'Mid Level' },
-        { id: 2, name: 'Sales Manager', department: 'Sales', level: 'Senior Level' },
-        { id: 3, name: 'HR Specialist', department: 'HR', level: 'Mid Level' },
+      setError('');
+
+      // Fetch data from backend
+      const [deptRes, levelRes, posRes] = await Promise.all([
+        axios.get('/api/administration/field-config/departments'),
+        axios.get('/api/administration/field-config/levels'),
+        axios.get('/api/administration/field-config/positions')
       ]);
-      setLevels(['Intern', 'Junior Level', 'Mid Level', 'Senior Level', 'Manager', 'Director', 'VP', 'CEO']);
+
+      setDepartments(deptRes.data.values || []);
+      setLevels(levelRes.data.values || []);
+      setPositions(posRes.data.positions || []);
     } catch (error) {
       console.error('Error fetching data:', error);
-      setError('Failed to load data');
+      setError('Failed to load data from server');
+
+      // Fallback to default values if API fails
+      setDepartments(['Sales', 'Marketing', 'HR', 'Administration', 'Accounts', 'IT', 'Operations']);
+      setLevels(['Intern', 'Junior Level', 'Mid Level', 'Senior Level', 'Manager', 'Director', 'VP', 'CEO']);
+      setPositions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const addDepartment = () => {
+  const addDepartment = async () => {
     if (newDepartment.trim() && !departments.includes(newDepartment.trim())) {
-      setDepartments([...departments, newDepartment.trim()]);
-      setNewDepartment('');
+      try {
+        await axios.post('/api/administration/field-config/departments/values', {
+          value: newDepartment.trim()
+        });
+        setDepartments([...departments, newDepartment.trim()]);
+        setNewDepartment('');
+      } catch (error) {
+        console.error('Error adding department:', error);
+        setError('Failed to add department');
+      }
     }
   };
 
-  const removeDepartment = (dept) => {
-    setDepartments(departments.filter(d => d !== dept));
+  const removeDepartment = async (dept) => {
+    try {
+      await axios.delete('/api/administration/field-config/departments/values', {
+        data: { value: dept }
+      });
+      setDepartments(departments.filter(d => d !== dept));
+    } catch (error) {
+      console.error('Error removing department:', error);
+      setError('Failed to remove department');
+    }
   };
 
   const addPosition = () => {

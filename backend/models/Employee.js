@@ -72,6 +72,15 @@ const employeeSchema = new mongoose.Schema({
     enum: ['Skilled', 'Unskilled'],
     default: 'Skilled',
   },
+  monthlyCtc: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  payrollConfig: {
+    type: Object, // Stores percentages, caps, specific rules
+    default: {}
+  },
   // Add other fields as needed
 }, {
   timestamps: true,

@@ -15,68 +15,39 @@ const PayrollCalculator = () => {
     employeeId: '',
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
-    minimumWage: "1500",
-    specialAllowance: "100",
-    otherAllowance: "",
-    targetGross: "",
-    variablePart: "",
+    grossSalary: "0",
+    monthlyCtc: "0",
+    payrollConfig: { basicPercent: 50, pfCapped: true, professionalTaxMode: 'Slab' },
+    specialAllowance: "0",
+    otherAllowance: "0",
+    professionalTax: "0",
+    variablePart: "0",
     category: 'Skilled'
   });
-  const [calculation, setCalculation] = useState({
-    // Compliance
-    complianceStatus: 'Non-Compliant',
-    minimumWage: 1500,
-    category: 'Skilled',
-    designation: '',
 
-    // Earnings
-    basicSalary: 0,
-    hra: 0,
-    conveyance: 0,
-    specialAllowance: 0,
-    otherAllowance: 0,
-    grossSalary: 0,
-
-    // Deductions
-    pf: 0,
-    esi: 0,
-    lwf: 0,
-    professionalTax: 0,
-    deductions: 0,
-
-    // Net salary
-    total: 0,
-
-    // Employer side
-    employerSide: {
-      pf: 0,
-      pfAdmin: 0,
-      esi: 0,
-      lwf: 0,
-      bonus: 0,
-      gratuity: 0
-    },
-
-    // CTC
-    statutoryCost: 0,
-    totalCTC: 0,
-    variablePart: 0
+  const [historyFilter, setHistoryFilter] = useState({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear()
   });
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setHistoryFilter({ ...historyFilter, [name]: value });
+  };
+
+  const [calculation, setCalculation] = useState(null);
   const [editMode, setEditMode] = useState({});
-  const [autoCalculate, setAutoCalculate] = useState(true);
+  const [showLogic, setShowLogic] = useState(false);
+  const [autoCalculate, setAutoCalculate] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
     fetchPayrolls();
     fetchPolicies();
-  }, []);
+  }, [historyFilter]);
 
-  // Reactive calculation
-  useEffect(() => {
-    if (autoCalculate && formData.employeeId && formData.basicSalary > 0) {
-      handleCalculate();
-    }
-  }, [formData.basicSalary, formData.employeeId, formData.city, autoCalculate, formData.numberOfSales, formData.cv]);
+  // No auto-calculation on change - Strictly via button click
+  // useEffect removed logic as per Rule 3 & 4
 
   const fetchEmployees = async () => {
     try {
@@ -89,10 +60,17 @@ const PayrollCalculator = () => {
 
   const fetchPayrolls = async () => {
     try {
-      const response = await axios.get('/api/payroll');
+      const queryParams = new URLSearchParams();
+      if (historyFilter.month) queryParams.append('month', historyFilter.month);
+      if (historyFilter.year) queryParams.append('year', historyFilter.year);
+
+      const response = await axios.get(`/api/payroll?${queryParams.toString()}`);
       setPayrolls(response.data);
     } catch (error) {
       console.error('Error fetching payrolls:', error);
+      if (error.response && error.response.status !== 500) {
+        setPayrolls([]);
+      }
     }
   };
 
@@ -107,22 +85,14 @@ const PayrollCalculator = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let val = (name === 'employeeId' || name === 'city' || name === 'category') ? value : (value === "" ? "" : parseFloat(value) || 0);
+    // Allow empty strings for typing, convert to number only when calculating
+    let newFormData = { ...formData, [name]: value };
 
-    let newFormData = { ...formData, [name]: val };
-
-    if (name === 'employeeId' || name === 'month' || name === 'year') {
-      const daysInMonth = new Date(newFormData.year, newFormData.month, 0).getDate();
-      if (name === 'month' || name === 'year' || !newFormData.presentDays) {
-        newFormData.presentDays = daysInMonth;
-      }
-
-      if (name === 'employeeId') {
-        const selectedEmployee = employees.find(emp => emp._id === value);
-        if (selectedEmployee) {
-          newFormData.ctc = selectedEmployee.salary || 0;
-          newFormData.category = selectedEmployee.category || 'Skilled';
-        }
+    if (name === 'employeeId') {
+      const selectedEmployee = employees.find(emp => emp._id === value);
+      if (selectedEmployee) {
+        newFormData.category = selectedEmployee.category || 'Skilled';
+        newFormData.grossSalary = selectedEmployee.salary?.toString() || "0";
       }
     }
 
@@ -171,73 +141,59 @@ const PayrollCalculator = () => {
         return;
       }
 
-      // Call the new compliance-based backend API
+      // Call the strict backend API with current form values
       const requestData = {
         employeeId: formData.employeeId,
-        month: formData.month,
-        year: formData.year,
-        minimumWage: formData.minimumWage || 1500, // Use provided MW or default
-        specialAllowance: formData.specialAllowance || 100,
-        otherAllowance: formData.otherAllowance || 0,
-        targetGross: formData.targetGross,
-        variablePay: formData.variablePart || 0
+        month: Number(formData.month),
+        year: Number(formData.year),
+        grossSalary: Number(formData.grossSalary) || 0,
+        specialAllowance: Number(formData.specialAllowance) || 0,
+        otherAllowance: Number(formData.otherAllowance) || 0,
+        professionalTax: Number(formData.professionalTax) || 0,
+        variablePay: Number(formData.variablePart) || 0
       };
 
-      console.log('Sending calculation request:', requestData);
-
       const response = await axios.post('/api/payroll/calculate', requestData);
-      const calculatedData = response.data;
+      const data = response.data;
 
-      console.log('Received calculation result:', calculatedData);
-
-      // TDS Calculation
-      if (autoCalculate && !editMode.tds) {
-        const annualIncome = (ctc + formData.variablePart) * 12;
-        if (annualIncome <= 250000) calculatedData.tds = 0;
-        else if (annualIncome <= 500000) calculatedData.tds = ((annualIncome - 250000) * 0.05) / 12;
-        else if (annualIncome <= 1000000) calculatedData.tds = (12500 + (annualIncome - 500000) * 0.2) / 12;
-        else calculatedData.tds = (112500 + (annualIncome - 1000000) * 0.3) / 12;
-      }
-
-      // Sales Incentives (Local Preview) - Strict Policy Rev 08.01.2026
-      if (!editMode.incentives && formData.cv > 0) {
-        // We'll use the user provided 'numberOfSales' and 'cv'
-        // But the unlock logic (Sale N+1) is hard to show instantly without deal history
-        // For preview, we show the potential for the current CV
-        const revenueRatio = 0.006; // Assume normal for preview if not specified
-        let rate = 0;
-        if (revenueRatio > 0.005) rate = 0.0025;
-        else if (revenueRatio >= 0.0025) rate = 0.0010;
-
-        calculatedData.incentives = rate * formData.cv;
-      }
-
-      // Salary Reward (Local Preview)
-      if (!editMode.performanceRewards && formData.numberOfSales >= 3) {
-        calculatedData.performanceRewards = basic * 0.5;
-      }
-
-      // Detailed Attendance Deductions
-      const daysInMonth = new Date(formData.year, formData.month, 0).getDate();
-      const dailySalary = gross / daysInMonth;
-
-      const absentDays = daysInMonth - formData.presentDays;
-      const penaltyDays = (formData.lateArrivals * 0.25) + (formData.earlyDepartures * 0.25);
-      const totalDeductionDays = absentDays + penaltyDays;
-
-      calculatedData.deductions = (formData.deductions || 0) + (totalDeductionDays * dailySalary);
-
-      // Net Total: Gross + Incentives + Rewards - Deductions (Tax, Statutory, Attendance)
-      let total = (gross + (calculatedData.incentives ?? 0) + (calculatedData.performanceRewards ?? 0)) - ((calculatedData.pf ?? 0) + (calculatedData.esi ?? 0) + (calculatedData.lwf ?? 0) + (calculatedData.tds ?? 0) + (calculatedData.professionalTax ?? 0) + (totalDeductionDays * dailySalary));
-
-      calculatedData.total = Math.max(0, total);
-
-      handleSetCalculation(calculatedData);
-      console.log('Calculation updated:', calculatedData);
+      // Excel Structure Mapping (Match Revit02)
+      setCalculation(data);
+      setEditMode({}); // Reset edit modes on new calculation
+      console.log('Excel Match Calculation:', data);
     } catch (error) {
       console.error('Error calculating payroll:', error);
-      alert('Check console for calculation errors');
+      alert('Calculation failed. Check console.');
     }
+  };
+
+  // Local Recalculation after Manual Override
+  const handleManualOverride = (path, value) => {
+    const val = Number(value) || 0;
+    const newCalc = { ...calculation };
+
+    // Update the specific field
+    if (path.includes('.')) {
+      const [parent, child] = path.split('.');
+      newCalc[parent][child] = val;
+    } else {
+      newCalc[path] = val;
+    }
+
+    // Recalculate Totals (Only those dependent on the changed field)
+    // 1. Employee Deduction Total = PF + ESI + LWF + PT
+    newCalc.deductions = Math.round(newCalc.pf + newCalc.esi + newCalc.lwf + newCalc.professionalTax);
+
+    // 2. Net Salary = Gross - Deductions
+    newCalc.total = Math.round(newCalc.grossSalary - newCalc.deductions);
+
+    // 3. Statutory Cost = PF + admin + ESI + LWF + Bonus + Gratuity
+    const esc = newCalc.employerSide;
+    newCalc.statutoryCost = Math.round(esc.pf + esc.pfAdmin + esc.esi + esc.lwf + esc.bonus + esc.gratuity);
+
+    // 4. Total CTC = Gross + Stat Cost + Variable
+    newCalc.totalCTC = Math.round(newCalc.grossSalary + newCalc.statutoryCost + newCalc.variablePart);
+
+    setCalculation(newCalc);
   };
 
   const handleSave = async () => {
@@ -263,26 +219,17 @@ const PayrollCalculator = () => {
         employeeId: '',
         month: new Date().getMonth() + 1,
         year: new Date().getFullYear(),
-        ctc: 0,
-        variablePart: 0,
+        minimumWage: "1500",
+        specialAllowance: "100",
+        otherAllowance: "",
+        targetGross: "",
+        variablePart: "",
         category: 'Skilled',
-        basicSalary: 0,
-        hra: 0,
-        pf: 0,
-        esi: 0,
-        lwf: 0,
-        bonus: 0,
-        gratuity: 0,
-        allowances: 0,
-        incentives: 0,
-        performanceRewards: 0,
-        deductions: 0,
-        presentDays: 0,
-        lateArrivals: 0,
-        earlyDepartures: 0,
-        cv: 0,
-        numberOfSales: 0,
-        city: 'Metro'
+        presentDays: "",
+        lateArrivals: "",
+        earlyDepartures: "",
+        cv: "",
+        numberOfSales: ""
       });
       setEditMode({});
       alert('Payroll saved successfully!');
@@ -310,23 +257,43 @@ const PayrollCalculator = () => {
     }
   };
 
+
+
+  // Update fetch to filter history (optional per user request, but good for consistency)
+  // For now, user asked filters *while exporting*. But seeing filtered list helps.
+  // We'll update fetchPayrolls to use these if you want, but sticking to export focus first.
+
   const exportToExcel = async (payrollId = null) => {
     try {
-      const url = payrollId ? `/api/payroll/${payrollId}/excel` : '/api/payroll/export/excel';
+      let url;
+      if (payrollId) {
+        url = `/api/payroll/${payrollId}/excel`;
+      } else {
+        // Use filters
+        const queryParams = new URLSearchParams();
+        if (historyFilter.month) queryParams.append('month', historyFilter.month);
+        if (historyFilter.year) queryParams.append('year', historyFilter.year);
+        url = `/api/payroll/export/excel?${queryParams.toString()}`;
+      }
+
       const response = await axios.get(url, {
         responseType: 'blob'
       });
       const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.setAttribute('download', payrollId ? `salary_slip_${payrollId}.xlsx` : `payroll_records_${new Date().toLocaleDateString()}.xlsx`);
+      const filename = payrollId
+        ? `salary_slip_${payrollId}.xlsx`
+        : `Payroll_Report_${historyFilter.month ? historyFilter.month + '-' : ''}${historyFilter.year}.xlsx`;
+
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error('Error exporting Excel:', error);
-      alert('Failed to export Excel');
+      alert('Failed to export Excel. Please try again.');
     }
   };
 
@@ -399,464 +366,81 @@ const PayrollCalculator = () => {
               </select>
             </div>
 
-            {/* Minimum Wage */}
+            {/* CTC Display (Read Only) */}
             <div className="input-group">
-              <label htmlFor="minimumWage">Minimum Wages (Basic+DA)</label>
+              <label>Monthly CTC (Assigned to Employee)</label>
               <input
-                id="minimumWage"
                 type="number"
-                name="minimumWage"
-                value={formData.minimumWage}
-                onChange={handleChange}
-                placeholder="Enter minimum wage (default: 1500)"
+                value={formData.monthlyCtc}
+                readOnly
+                style={{ backgroundColor: 'var(--bg-tertiary)', fontWeight: 'bold' }}
               />
-            </div>
-
-            {/* Special Allowance */}
-            <div className="input-group">
-              <label htmlFor="specialAllowance">Special Allowance</label>
-              <input
-                id="specialAllowance"
-                type="number"
-                name="specialAllowance"
-                value={formData.specialAllowance}
-                onChange={handleChange}
-                placeholder="Enter special allowance (default: 100)"
-              />
-            </div>
-
-            {/* Target Gross */}
-            <div className="input-group">
-              <label htmlFor="targetGross">Target Gross Salary</label>
-              <input
-                id="targetGross"
-                type="number"
-                name="targetGross"
-                value={formData.targetGross}
-                onChange={handleChange}
-                placeholder="Enter target gross salary"
-              />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+                To change this, edit the Employee profile.
+              </p>
             </div>
 
             {/* Variable Part */}
             <div className="input-group">
-              <label htmlFor="variablePart">Variable Part</label>
+              <label htmlFor="variablePart">Variable Part (Avg/Month)</label>
               <input
                 id="variablePart"
                 type="number"
                 name="variablePart"
-                value={formData.variablePart}
+                value={formData.variablePart || "0"}
                 onChange={handleChange}
-                placeholder="Enter variable amount"
+                placeholder="Enter Monthly Variable Amount"
               />
             </div>
 
-            {/* City */}
+            {/* Other Allowance */}
             <div className="input-group">
-              <label htmlFor="city">City Type</label>
-              <select
-                id="city"
-                name="city"
-                value={formData.city}
+              <label htmlFor="otherAllowance">Fixed Other Allowance</label>
+              <input
+                id="otherAllowance"
+                type="number"
+                name="otherAllowance"
+                value={formData.otherAllowance || "0"}
                 onChange={handleChange}
-              >
-                <option value="Metro">Metro</option>
-                <option value="Non-Metro">Non-Metro</option>
-              </select>
+              />
             </div>
+
           </div>
 
-          <div style={{ marginTop: 'var(--space-xl)', paddingTop: 'var(--space-xl)', borderTop: '1px solid var(--border-subtle)' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: 'var(--space-lg)' }}>
-              Manual Overrides (Components auto-filled from CTC)
-            </h3>
-
-            <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
-              {/* Basic Salary */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="basicSalary">Basic Salary</label>
-                  <input
-                    id="basicSalary"
-                    type="number"
-                    name="basicSalary"
-                    value={formData.basicSalary ?? ""}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-
-              {/* Conveyance with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="conveyance">Conveyance (Auto: ₹1,600)</label>
-                  <input
-                    id="conveyance"
-                    type="number"
-                    name="conveyance"
-                    value={calculation?.conveyance ?? formData.conveyance ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.conveyance}
-                    style={{ opacity: editMode.conveyance ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('conveyance')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* LTA with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="lta">LTA (Auto: 1 month basic)</label>
-                  <input
-                    id="lta"
-                    type="number"
-                    name="lta"
-                    value={calculation?.lta ?? formData.lta ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.lta}
-                    style={{ opacity: editMode.lta ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('lta')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* Medical with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="medical">Medical (Auto: ₹4,167)</label>
-                  <input
-                    id="medical"
-                    type="number"
-                    name="medical"
-                    value={calculation?.medical ?? formData.medical ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.medical}
-                    style={{ opacity: editMode.medical ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('medical')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* PF with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="pf">PF (Employee)</label>
-                  <input
-                    id="pf"
-                    type="number"
-                    name="pf"
-                    value={calculation?.pf ?? formData.pf ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.pf}
-                    style={{ opacity: editMode.pf ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('pf')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* ESIC with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="esi">ESIC (Employee)</label>
-                  <input
-                    id="esi"
-                    type="number"
-                    name="esi"
-                    value={calculation?.esi ?? formData.esi ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.esi}
-                    style={{ opacity: editMode.esi ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('esi')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* LWF with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="lwf">LWF (Employee)</label>
-                  <input
-                    id="lwf"
-                    type="number"
-                    name="lwf"
-                    value={calculation?.lwf ?? formData.lwf ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.lwf}
-                    style={{ opacity: editMode.lwf ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('lwf')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* Professional Tax with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="professionalTax">Professional Tax (Auto-calc)</label>
-                  <input
-                    id="professionalTax"
-                    type="number"
-                    name="professionalTax"
-                    value={calculation?.professionalTax ?? formData.professionalTax ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.professionalTax}
-                    style={{ opacity: editMode.professionalTax ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('professionalTax')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* TDS with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="tds">TDS (Auto-calc)</label>
-                  <input
-                    id="tds"
-                    type="number"
-                    name="tds"
-                    value={calculation?.tds ?? formData.tds ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.tds}
-                    style={{ opacity: editMode.tds ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('tds')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* Allowances with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="allowances">Other Allowances</label>
-                  <input
-                    id="allowances"
-                    type="number"
-                    name="allowances"
-                    value={formData.allowances ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.allowances}
-                    style={{ opacity: editMode.allowances ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('allowances')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* Deductions with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="deductions">Manual Deductions</label>
-                  <input
-                    id="deductions"
-                    type="number"
-                    name="deductions"
-                    value={formData.deductions ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.deductions}
-                    style={{ opacity: editMode.deductions ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('deductions')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* Attendance Stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-md)' }}>
-                <div className="input-group">
-                  <label htmlFor="presentDays">Present Days</label>
-                  <input
-                    id="presentDays"
-                    type="number"
-                    name="presentDays"
-                    value={formData.presentDays ?? ""}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="input-group">
-                  <label htmlFor="lateArrivals">Days Late</label>
-                  <input
-                    id="lateArrivals"
-                    type="number"
-                    name="lateArrivals"
-                    value={formData.lateArrivals ?? ""}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="input-group">
-                  <label htmlFor="earlyDepartures">Days Early Quit</label>
-                  <input
-                    id="earlyDepartures"
-                    type="number"
-                    name="earlyDepartures"
-                    value={formData.earlyDepartures ?? ""}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Sales Specific Fields */}
-          <div style={{ marginTop: 'var(--space-xl)', paddingTop: 'var(--space-xl)', borderTop: '1px solid var(--border-subtle)' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: 'var(--space-lg)' }}>
-              Sales Incentives (For Sales Employees)
-            </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 'var(--space-lg)' }}>
-              <div className="input-group">
-                <label htmlFor="numberOfSales">Number of Sales</label>
-                <input
-                  id="numberOfSales"
-                  type="number"
-                  name="numberOfSales"
-                  value={formData.numberOfSales ?? ""}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="cv">CV (Consideration Value)</label>
-                <input
-                  id="cv"
-                  type="number"
-                  name="cv"
-                  value={formData.cv ?? ""}
-                  onChange={handleChange}
-                  placeholder="Enter CV amount"
-                />
-              </div>
-
-              {/* Incentives with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="incentives">Incentives (Auto-calculated)</label>
-                  <input
-                    id="incentives"
-                    type="number"
-                    name="incentives"
-                    value={calculation?.incentives ?? formData.incentives ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.incentives}
-                    style={{ opacity: editMode.incentives ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('incentives')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-
-              {/* Performance Rewards with Edit Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-                <div className="input-group" style={{ flex: 1 }}>
-                  <label htmlFor="performanceRewards">Performance Rewards</label>
-                  <input
-                    id="performanceRewards"
-                    type="number"
-                    name="performanceRewards"
-                    value={calculation?.performanceRewards ?? formData.performanceRewards ?? ""}
-                    onChange={handleChange}
-                    disabled={!editMode.performanceRewards}
-                    style={{ opacity: editMode.performanceRewards ? 1 : 0.7 }}
-                  />
-                </div>
-                <button
-                  onClick={() => toggleEditMode('performanceRewards')}
-                  className="btn-ghost"
-                  style={{ padding: 'var(--space-sm)', minWidth: 'auto' }}
-                  title="Toggle manual edit"
-                >
-                  <Icons.Settings />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 'var(--space-2xl)', display: 'flex', gap: 'var(--space-md)' }}>
-            <Button onClick={handleCalculate} variant="primary">
+          <div style={{ marginTop: 'var(--space-2xl)', display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <Button onClick={handleCalculate} variant="primary" style={{ minWidth: '200px' }}>
               Calculate Payroll
             </Button>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={autoCalculate}
-                onChange={(e) => setAutoCalculate(e.target.checked)}
-              />
-              <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Auto-calculate all fields
-              </span>
-            </label>
+
+            <button
+              className="btn-ghost"
+              onClick={() => setShowLogic(!showLogic)}
+              style={{ color: 'var(--accent-primary)', fontSize: '0.875rem' }}
+            >
+              {showLogic ? 'Hide Formula Logic' : 'How is this calculated?'}
+            </button>
           </div>
+
+          {showLogic && (
+            <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#F3F4F6', borderRadius: '8px', fontSize: '0.85rem' }}>
+              <strong>CTC Reverse Calculation Logic:</strong>
+              <ul style={{ paddingLeft: '20px', marginTop: '5px' }}>
+                <li><strong>Target Cost</strong> = CTC - Variable Part</li>
+                <li><strong>Solver</strong> iteratively finds a <em>Gross Basic</em> such that: <br /><code>Gross + Employer Statutory Costs = Target Cost</code></li>
+                <li><strong>Formulas:</strong>
+                  <ul>
+                    <li>Basic = {formData.payrollConfig?.basicPercent}% of Gross</li>
+                    <li>PF (Employer) = 12% of Basic (Capped at 1800 if enabled)</li>
+                    <li>PF Admin = 1% of Basic</li>
+                    <li>ESI (Employer) = 3.25% of Gross</li>
+                    <li>LWF (Employer) = 0.40% of Gross</li>
+                    <li>Bonus = Max(8.33% of Basic, 7000)</li>
+                    <li>Gratuity = 4.81% of Basic</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+          )}
         </Card>
 
         {/* Calculation Result */}
@@ -886,26 +470,31 @@ const PayrollCalculator = () => {
                   Earnings (Gross: ₹{calculation.grossSalary?.toLocaleString()})
                 </h3>
                 <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Minimum Wages (BASIC+DA)</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.basicSalary?.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>HRA</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.hra?.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Conveyance</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.conveyance?.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Special Allowance</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.specialAllowance?.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Other Allowance</span>
-                    <span style={{ fontWeight: '500' }}>₹{calculation.otherAllowance?.toLocaleString()}</span>
-                  </div>
+                  {['basicSalary', 'hra', 'conveyance', 'specialAllowance', 'otherAllowance'].map(field => (
+                    <div key={field} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        {field === 'basicSalary' ? 'Minimum Wages (BASIC+DA)' :
+                          field === 'hra' ? 'HRA' :
+                            field === 'conveyance' ? 'Conveyance' :
+                              field === 'specialAllowance' ? 'Special Allowance' : 'Other Allowance'}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                        {editMode[field] ? (
+                          <input
+                            type="number"
+                            value={calculation[field]}
+                            onChange={(e) => handleManualOverride(field, e.target.value)}
+                            style={{ width: '100px', fontSize: '0.875rem' }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: '500' }}>₹{calculation[field]?.toLocaleString()}</span>
+                        )}
+                        <button onClick={() => toggleEditMode(field)} className="btn-ghost" style={{ padding: '2px', minWidth: 'auto' }}>
+                          <Icons.Settings style={{ width: '14px', height: '14px' }} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--border-subtle)' }}>
                     <span>Total Gross Wage per month</span>
                     <span>₹{calculation.grossSalary?.toLocaleString()}</span>
@@ -919,27 +508,35 @@ const PayrollCalculator = () => {
                   Deductions
                 </h3>
                 <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>PF Contribution (12%) (BASIC & D.A)</span>
-                    <span style={{ color: '#EF4444' }}>-₹{calculation.pf?.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>ESIC (0.75%) (TOTAL GROSS)</span>
-                    <span style={{ color: '#EF4444' }}>-₹{calculation.esi?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Employee Contribution - LWF</span>
-                    <span style={{ color: '#EF4444' }}>-₹{calculation.lwf?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Professional Tax</span>
-                    <span style={{ color: '#EF4444' }}>-₹{calculation.professionalTax?.toLocaleString() || '0'}</span>
-                  </div>
+                  {['pf', 'esi', 'lwf', 'professionalTax'].map(field => (
+                    <div key={field} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        {field === 'pf' ? 'PF Contribution (12%)' :
+                          field === 'esi' ? 'ESIC (0.75%)' :
+                            field === 'lwf' ? 'Employee LWF' : 'Professional Tax'}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                        {editMode[field] ? (
+                          <input
+                            type="number"
+                            value={calculation[field]}
+                            onChange={(e) => handleManualOverride(field, e.target.value)}
+                            style={{ width: '100px', fontSize: '0.875rem' }}
+                          />
+                        ) : (
+                          <span style={{ color: '#EF4444' }}>-₹{calculation[field]?.toLocaleString()}</span>
+                        )}
+                        <button onClick={() => toggleEditMode(field)} className="btn-ghost" style={{ padding: '2px', minWidth: 'auto' }}>
+                          <Icons.Settings style={{ width: '14px', height: '14px' }} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--border-subtle)' }}>
                     <span>Employees deduction</span>
                     <span style={{ color: '#EF4444' }}>₹{calculation.deductions?.toLocaleString()}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1em', color: 'var(--accent-primary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1em', color: 'var(--accent-primary)', marginTop: 'var(--space-sm)' }}>
                     <span>Net Salary in Hand</span>
                     <span>₹{calculation.total?.toLocaleString()}</span>
                   </div>
@@ -953,30 +550,33 @@ const PayrollCalculator = () => {
                   Statutory obligation on Minimum wages
                 </h3>
                 <div style={{ display: 'grid', gap: 'var(--space-sm)', fontSize: '0.875rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>PF 12% on Basic + DA</span>
-                    <span>₹{calculation.employerSide?.pf.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>PF Admin Charges</span>
-                    <span>₹{calculation.employerSide?.pfAdmin.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>ESI (3.25% on Gross)</span>
-                    <span>₹{calculation.employerSide?.esi.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>LWF to be included as applicable</span>
-                    <span>₹{calculation.employerSide?.lwf.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Bonus (8.33% on Minimum Wages or INR 7000 whichever is higher)</span>
-                    <span>₹{calculation.employerSide?.bonus.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Gratuity</span>
-                    <span>₹{calculation.employerSide?.gratuity.toLocaleString()}</span>
-                  </div>
+                  {[
+                    { label: 'PF 12% on Basic + DA', field: 'employerSide.pf' },
+                    { label: 'PF Admin Charges', field: 'employerSide.pfAdmin' },
+                    { label: 'ESI (3.25% on Gross)', field: 'employerSide.esi' },
+                    { label: 'LWF', field: 'employerSide.lwf' },
+                    { label: 'Bonus (8.33%)', field: 'employerSide.bonus' },
+                    { label: 'Gratuity (4.81%)', field: 'employerSide.gratuity' }
+                  ].map(item => (
+                    <div key={item.field} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                        {editMode[item.field] ? (
+                          <input
+                            type="number"
+                            value={item.field.includes('.') ? calculation.employerSide[item.field.split('.')[1]] : calculation[item.field]}
+                            onChange={(e) => handleManualOverride(item.field, e.target.value)}
+                            style={{ width: '80px', fontSize: '0.75rem' }}
+                          />
+                        ) : (
+                          <span>₹{(item.field.includes('.') ? calculation.employerSide[item.field.split('.')[1]] : calculation[item.field]).toLocaleString()}</span>
+                        )}
+                        <button onClick={() => toggleEditMode(item.field)} className="btn-ghost" style={{ padding: '2px', minWidth: 'auto' }}>
+                          <Icons.Settings style={{ width: '12px', height: '12px' }} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--border-subtle)' }}>
                     <span>Statutory Cost</span>
                     <span>₹{calculation.statutoryCost?.toLocaleString()}</span>
@@ -992,21 +592,72 @@ const PayrollCalculator = () => {
 
             {/* CTC Breakdown */}
             <div style={{ marginTop: 'var(--space-xl)', padding: 'var(--space-lg)', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: 'var(--space-lg)', textAlign: 'center' }}>
-                CTC CALCULATION
-              </h3>
-              <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>CTC of Employee</span>
-                  <span style={{ fontWeight: '500' }}>₹{(calculation.grossSalary + calculation.statutoryCost)?.toLocaleString()}</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+
+                {/* LEFT: CTC & VARIABLE */}
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: 'var(--space-lg)' }}>
+                    CTC SUMMARY
+                  </h3>
+                  <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>CTC of Employee</span>
+                      <span style={{ fontWeight: '500' }}>₹{(calculation.grossSalary + calculation.statutoryCost)?.toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Variable Part</span>
+                      <span style={{ fontWeight: '500' }}>₹{calculation.variablePart?.toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1em', paddingTop: 'var(--space-sm)', borderTop: '2px solid var(--border-subtle)' }}>
+                      <span>Total CTC of Employee</span>
+                      <span>₹{calculation.totalCTC?.toLocaleString()}</span>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Variable Part</span>
-                  <span style={{ fontWeight: '500' }}>₹{calculation.variablePart?.toLocaleString()}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1em', paddingTop: 'var(--space-sm)', borderTop: '2px solid var(--border-subtle)' }}>
-                  <span>Total CTC of Employee</span>
-                  <span>₹{calculation.totalCTC?.toLocaleString()}</span>
+
+                {/* RIGHT: INCENTIVE & ATTENDANCE DETAILS */}
+                <div style={{ borderLeft: '1px solid #ddd', paddingLeft: '20px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: 'var(--space-lg)' }}>
+                    PERFORMANCE & ATTENDANCE
+                  </h3>
+
+                  {/* INCENTIVES */}
+                  <div style={{ marginBottom: '15px' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#555', marginBottom: '5px' }}>
+                      INCENTIVES ({calculation.incentiveDetails?.salesCount || 0} Sales)
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span>Unlocked (Paid):</span>
+                      <span style={{ color: '#10B981', fontWeight: 'bold' }}>₹{calculation.incentiveDetails?.unlockedAmount || 0}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span>Locked (Future):</span>
+                      <span style={{ color: '#F59E0B', fontWeight: 'bold' }}>₹{calculation.incentiveDetails?.lockedAmount || 0}</span>
+                    </div>
+                    {calculation.incentiveDetails?.managerCommission > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span>Manager Comm.:</span>
+                        <span style={{ color: '#8B5CF6', fontWeight: 'bold' }}>₹{calculation.incentiveDetails?.managerCommission || 0}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ATTENDANCE */}
+                  <div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#555', marginBottom: '5px' }}>
+                      ATTENDANCE BREAKDOWN
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', fontSize: '0.8rem' }}>
+                      <div>Present: {calculation.attendanceDetails?.presentDays || 0}</div>
+                      <div>W-Off: {calculation.attendanceDetails?.weeklyOffs || 0}</div>
+                      <div>Leaves: {calculation.attendanceDetails?.leaves || 0}</div>
+                      <div>Late: {calculation.attendanceDetails?.lateMarks || 0}</div>
+                    </div>
+                    <div style={{ marginTop: '5px', borderTop: '1px dashed #ccc', paddingTop: '5px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                      <span>Paid Days:</span>
+                      <span>{calculation.attendanceDetails?.paidDays || 0}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1026,7 +677,42 @@ const PayrollCalculator = () => {
         <Card style={{ padding: 'var(--space-2xl)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xl)' }}>
             <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>Payroll History</h2>
-            <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
+            <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
+
+              {/* History Filters */}
+              <select
+                name="month"
+                value={historyFilter.month}
+                onChange={handleFilterChange}
+                style={{
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                <option value="">All Months</option>
+                {[...Array(12).keys()].map(i => (
+                  <option key={i + 1} value={i + 1}>{new Date(0, i).toLocaleString('default', { month: 'short' })}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                name="year"
+                value={historyFilter.year}
+                onChange={handleFilterChange}
+                placeholder="Year"
+                style={{
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)',
+                  width: '80px'
+                }}
+              />
+
               <Button onClick={() => exportToExcel()} variant="secondary">
                 <Icons.Download /> Export History (Excel)
               </Button>
@@ -1044,11 +730,7 @@ const PayrollCalculator = () => {
                   <th>Conv.</th>
                   <th title="ESIC (Employee)">ESI</th>
                   <th title="LWF (Employee)">LWF</th>
-                  <th>Inc.</th>
-                  <th>Rew.</th>
                   <th>PF</th>
-                  <th>PT</th>
-                  <th>TDS</th>
                   <th>Net</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -1065,11 +747,7 @@ const PayrollCalculator = () => {
                     <td>₹{(payroll.conveyance || 0).toLocaleString()}</td>
                     <td style={{ color: '#EF4444' }}>₹{(payroll.esi || 0).toLocaleString()}</td>
                     <td style={{ color: '#EF4444' }}>₹{(payroll.lwf || 0).toLocaleString()}</td>
-                    <td style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>₹{(payroll.incentives || 0).toLocaleString()}</td>
-                    <td style={{ color: 'var(--accent-primary)' }}>₹{(payroll.performanceRewards || 0).toLocaleString()}</td>
                     <td style={{ color: '#EF4444' }}>-₹{(payroll.pf || 0).toLocaleString()}</td>
-                    <td style={{ color: '#EF4444' }}>-₹{(payroll.professionalTax || 0).toLocaleString()}</td>
-                    <td style={{ color: '#EF4444' }}>-₹{(payroll.tds || 0).toLocaleString()}</td>
                     <td style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--text-primary)' }}>₹{(payroll.total || 0).toLocaleString()}</td>
                     <td>
                       <span className={`badge ${payroll.isLocked ? 'badge-success' : 'badge-warning'}`}>

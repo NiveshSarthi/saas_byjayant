@@ -19,8 +19,12 @@ const Payroll = require('./models/Payroll');
 
 require('dotenv').config();
 
-// Use the standard connection string from seed.js
-const mongoURI = 'mongodb://root:vbPT5AthmBzfWQtaH2MOdbj6nx4d9TFUvmHIGm0htv43pNMEMwMbgby82bqiGhzx@72.61.248.175:5444/?directConnection=true';
+// Use the connection string from environment variables
+const mongoURI = process.env.MONGO_URI;
+if (!mongoURI) {
+    console.error('MONGO_URI is not defined in .env');
+    process.exit(1);
+}
 
 const seedAll = async () => {
     try {
@@ -70,6 +74,7 @@ const seedAll = async () => {
         // 4. Employees
         const employeeData = [
             {
+                employeeId: 'EMP001',
                 user: userMap['sales1@company.com']._id,
                 department: 'Sales',
                 position: 'Sales Executive',
@@ -80,6 +85,7 @@ const seedAll = async () => {
                 status: 'Active'
             },
             {
+                employeeId: 'EMP002',
                 user: userMap['sales2@company.com']._id,
                 department: 'Sales',
                 position: 'Senior Executive',
@@ -90,6 +96,7 @@ const seedAll = async () => {
                 status: 'Active'
             },
             {
+                employeeId: 'EMP003',
                 user: userMap['hr@company.com']._id,
                 department: 'HR',
                 position: 'HR Manager',

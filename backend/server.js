@@ -94,6 +94,9 @@ app.use('/api/sales-policy', salesPolicyRoutes);
 const administrationRoutes = require('./routes/administration');
 app.use('/api/administration', administrationRoutes);
 
+const fieldConfigRoutes = require('./routes/fieldConfig');
+app.use('/api/administration/field-config', fieldConfigRoutes);
+
 const accountsRoutes = require('./routes/accounts');
 app.use('/api/accounts', accountsRoutes);
 

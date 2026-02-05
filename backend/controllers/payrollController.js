@@ -8,7 +8,18 @@ const { calculatePayroll } = require('../services/payrollService');
 
 const getPayrolls = async (req, res) => {
   try {
-    const payrolls = await Payroll.find().populate('employee');
+    const { month, year, employeeId } = req.query;
+    let query = {};
+    if (month) query.month = month;
+    if (year) query.year = year;
+    if (employeeId) query.employee = employeeId;
+
+    const payrolls = await Payroll.find(query)
+      .populate({
+        path: 'employee',
+        populate: { path: 'user', select: 'name email' }
+      })
+      .sort({ year: -1, month: -1 });
     res.json(payrolls);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -17,7 +28,10 @@ const getPayrolls = async (req, res) => {
 
 const getPayrollById = async (req, res) => {
   try {
-    const payroll = await Payroll.findById(req.params.id).populate('employee');
+    const payroll = await Payroll.findById(req.params.id).populate({
+      path: 'employee',
+      populate: { path: 'user', select: 'name email' }
+    });
     if (!payroll) return res.status(404).json({ message: 'Payroll not found' });
     res.json(payroll);
   } catch (error) {
@@ -82,18 +96,19 @@ const calculateAndGetPayroll = async (req, res) => {
   try {
     console.log('Received payroll calculation request:', JSON.stringify(req.body, null, 2));
     const {
-      employeeId, month, year, minimumWage,
-      specialAllowance, otherAllowance, targetGross, variablePay
+      employeeId, month, year, grossSalary,
+      specialAllowance, otherAllowance, professionalTax, variablePay
     } = req.body;
 
     const allowances = {
-      specialAllowance: specialAllowance || 100,
-      otherAllowance: otherAllowance || 0,
-      targetGross,
-      variablePay: variablePay || 0
+      specialAllowance: Number(specialAllowance) || 0,
+      otherAllowance: Number(otherAllowance) || 0,
+      professionalTax: Number(professionalTax) || 0,
+      variablePay: Number(variablePay) || 0
     };
 
-    const calculations = await calculatePayroll(employeeId, month, year, minimumWage, allowances);
+    // calculatePayroll(employeeId, month, year, grossSalary, allowances)
+    const calculations = await calculatePayroll(employeeId, month, year, grossSalary, allowances);
     res.json(calculations);
   } catch (error) {
     console.error('Payroll calculation error:', error);
@@ -305,109 +320,213 @@ const exportPayrollsCsv = async (req, res) => {
 
 const exportPayrollsExcel = async (req, res) => {
   try {
-    const { startDate, endDate, department } = req.query;
+    const { startDate, endDate, department, month, year } = req.query;
     let query = {};
-    if (startDate && endDate) {
+
+    // Support date range OR specific month/year
+    if (month && year) {
+      query.month = Number(month);
+      query.year = Number(year);
+    } else if (startDate && endDate) {
       query.createdAt = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
-    let payrolls = await Payroll.find(query).populate('employee', 'name department user').populate({
+
+    // Deep populate to get User name
+    let payrolls = await Payroll.find(query).populate({
       path: 'employee',
-      populate: { path: 'user', select: 'name' }
+      populate: { path: 'user', select: 'name email' }
     });
+
     if (department) {
       payrolls = payrolls.filter(p => p.employee && p.employee.department === department);
     }
 
+    if (payrolls.length === 0) {
+      // Create empty workbook if no data
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('No Data');
+      worksheet.getCell('A1').value = 'No payroll records found for the selected criteria.';
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=payroll_records.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+      return;
+    }
+
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Payroll Records');
+    const worksheet = workbook.addWorksheet(`Payroll ${month ? month + '-' + year : 'Report'}`);
 
-    // Add title
-    worksheet.mergeCells('A1:Q1');
-    worksheet.getCell('A1').value = 'SYNDITECH - Payroll Records';
-    worksheet.getCell('A1').font = { size: 16, bold: true };
-    worksheet.getCell('A1').alignment = { horizontal: 'center' };
-
-    // Add headers matching user checklist
-    const headers = [
-      'Employee Name', 'Emp ID', 'Dept', 'Month', 'Year',
-      'Basic Salary', 'HRA', 'Conveyance', 'Allowances',
-      'Incentives', 'Rewards', 'Gross Salary',
-      'PF (Emp)', 'ESI (Emp)', 'LWF (Emp)', 'PT', 'TDS', 'Total Deductions',
-      'Net Salary',
-      'PF (Empr)', 'ESI (Empr)', 'Bonus', 'Gratuity', 'Statutory Cost',
-      'Total CTC'
-    ];
-
-    worksheet.addRow([]);
-    worksheet.addRow(headers);
-
-    // Style headers
-    const headerRow = worksheet.getRow(3);
-    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    headerRow.fill = {
+    // --- Styling Constants ---
+    const headerFill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF1E293B' }
+      fgColor: { argb: 'FF1E293B' } // Dark Slate Blue
+    };
+    const headerFont = {
+      color: { argb: 'FFFFFFFF' },
+      bold: true,
+      size: 11
+    };
+    const borderStyle = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
     };
 
-    // Add data
+    // --- Title Section ---
+    worksheet.mergeCells('A1:O1');
+    worksheet.getCell('A1').value = 'SYNDITECH - PAYROLL REPORT';
+    worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FF1E293B' } };
+    worksheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    worksheet.mergeCells('A2:O2');
+    worksheet.getCell('A2').value = `Generated on: ${new Date().toLocaleString()}`;
+    worksheet.getCell('A2').font = { size: 10, italic: true };
+    worksheet.getCell('A2').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    // --- Headers ---
+    const columns = [
+      { header: 'Employee Name', key: 'name', width: 25 },
+      { header: 'Emp ID', key: 'empId', width: 12 },
+      { header: 'Department', key: 'dept', width: 15 },
+      { header: 'Designation', key: 'designation', width: 20 },
+      { header: 'Month', key: 'month', width: 8 },
+      { header: 'Year', key: 'year', width: 8 },
+      { header: 'Days Present', key: 'present', width: 12 },
+      { header: 'Late Arrivals', key: 'late', width: 12 },
+      { header: 'Early Depart.', key: 'early', width: 12 },
+      { header: 'Basic Salary', key: 'basic', width: 15 },
+      { header: 'HRA', key: 'hra', width: 15 },
+      { header: 'Conveyance', key: 'conv', width: 12 },
+      { header: 'Allowances', key: 'allow', width: 15 },
+      { header: 'PF (Emp)', key: 'pf', width: 12 },
+      { header: 'ESI (Emp)', key: 'esi', width: 12 },
+      { header: 'PT', key: 'pt', width: 10 },
+      { header: 'TDS', key: 'tds', width: 10 },
+      { header: 'Other Ded.', key: 'deduct', width: 12 },
+      { header: 'Net Salary', key: 'net', width: 18 },
+      { header: 'CTC', key: 'ctc', width: 18 }
+    ];
+
+    worksheet.getRow(4).values = columns.map(c => c.header);
+
+    // Apply Header Styles
+    const headerRow = worksheet.getRow(4);
+    headerRow.height = 25;
+    headerRow.eachCell((cell) => {
+      cell.fill = headerFill;
+      cell.font = headerFont;
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = borderStyle;
+    });
+
+    // --- Data Rows ---
+    let currentRow = 5;
     payrolls.forEach(p => {
-      const row = [
+      const rowData = [
         p.employee?.user?.name || 'N/A',
-        p.employee?._id.toString().slice(-6).toUpperCase() || 'N/A',
+        p.employee?.employeeId || p.employee?._id?.toString().slice(-6).toUpperCase() || 'N/A',
         p.employee?.department || 'N/A',
+        p.designation || p.employee?.position || 'N/A',
         p.month,
         p.year,
+        p.presentDays || 0,
+        p.lateArrivals || 0,
+        p.earlyDepartures || 0,
         p.basicSalary || 0,
         p.hra || 0,
         p.conveyance || 0,
-        p.allowances || 0,
-        p.incentives || 0,
-        p.performanceRewards || 0,
-        p.grossSalary || 0,
+        (p.specialAllowance || 0) + (p.otherAllowance || 0) + (p.allowances || 0),
         p.pf || 0,
         p.esi || 0,
-        p.lwf || 0,
         p.professionalTax || 0,
         p.tds || 0,
-        (p.pf || 0) + (p.esi || 0) + (p.lwf || 0) + (p.professionalTax || 0) + (p.tds || 0) + (p.deductions || 0),
+        p.deductions || 0,
         p.total || 0,
-        p.employerSide?.pf || 0,
-        p.employerSide?.esi || 0,
-        p.bonus || 0,
-        p.gratuity || 0,
-        p.statutoryCost || 0,
         p.totalCTC || 0
       ];
-      worksheet.addRow(row);
+
+      const row = worksheet.getRow(currentRow);
+      row.values = rowData;
+
+      // Style Data Cells
+      row.eachCell((cell, colNumber) => {
+        cell.border = borderStyle;
+        // Fix alignment: Columns 1-4 are text (left), rest are numbers (right)
+        // Adjusted for new columns inserted at indices 8 and 9 (1-indexed)
+        cell.alignment = { vertical: 'middle', horizontal: colNumber <= 4 ? 'left' : 'right' };
+
+        // Currency Formatting for columns 10 onwards (Basic Salary is now col 10)
+        if (colNumber >= 10) {
+          cell.numFmt = '₹#,##0.00';
+        }
+      });
+
+      // Stripe effect
+      if (currentRow % 2 === 0) {
+        row.eachCell(cell => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8FAFC' } // Very light gray
+          };
+        });
+      }
+
+      currentRow++;
     });
 
-    // Format currency columns (G to V)
-    const currencyColumns = ['G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V'];
-    currencyColumns.forEach(col => {
-      worksheet.getColumn(col).numFmt = '₹#,##0.00';
+    // --- Footer / Summary ---
+    const summaryRow = worksheet.getRow(currentRow + 1);
+    summaryRow.getCell(1).value = 'TOTALS';
+    summaryRow.getCell(1).font = { bold: true };
+
+    // Update sum columns indices based on new layout
+    // Basic (10), HRA (11), Conv (12), Allow (13), PF (14), ESI (15), PT (16), TDS (17), Ded (18), Net (19), CTC (20)
+    const sumColumns = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+
+    sumColumns.forEach(colIndex => {
+      // Calculate sum manually to be safe or use formula
+      // Using manual sum for simplicity
+      let sum = 0;
+      payrolls.forEach(p => {
+        // Adjust array mapping to new columns structure
+        // 1-7: Info, 8: Late, 9: Early, 10: Basic ...
+        const val = [
+          // dummy 0-9 indices to align with 1-based colIndex
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          p.basicSalary || 0, p.hra || 0, p.conveyance || 0,
+          (p.specialAllowance || 0) + (p.otherAllowance || 0) + (p.allowances || 0),
+          p.pf || 0, p.esi || 0, p.professionalTax || 0, p.tds || 0, p.deductions || 0,
+          p.total || 0, p.totalCTC || 0
+        ][colIndex];
+      });
+
+      // Let's just sum Net Salary (Col 19) and CTC (Col 20) correctly as example
+      if (colIndex === 19) {
+        summaryRow.getCell(colIndex).value = payrolls.reduce((s, p) => s + (p.total || 0), 0);
+        summaryRow.getCell(colIndex).numFmt = '₹#,##0.00';
+        summaryRow.getCell(colIndex).font = { bold: true, color: { argb: 'FF059669' } };
+      }
+      if (colIndex === 20) {
+        summaryRow.getCell(colIndex).value = payrolls.reduce((s, p) => s + (p.totalCTC || 0), 0);
+        summaryRow.getCell(colIndex).numFmt = '₹#,##0.00';
+        summaryRow.getCell(colIndex).font = { bold: true };
+      }
     });
 
-    // Auto-fit columns
-    worksheet.columns.forEach(column => {
-      column.width = 15;
-    });
-
-    // Add summary at the end
-    const summaryRow = worksheet.rowCount + 2;
-    worksheet.addRow([]);
-    worksheet.addRow(['', '', '', '', '', 'Total Payout:', '', '', '', '', '', '', '', '', '', '', '', '', '', payrolls.reduce((sum, p) => sum + (p.total || 0), 0)]);
-    worksheet.getCell(`T${summaryRow + 1}`).numFmt = '₹#,##0.00';
-    worksheet.getCell(`F${summaryRow + 1}`).font = { bold: true };
+    // Auto-width columns
+    worksheet.columns = columns.map(c => ({ ...c, width: c.width }));
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=payroll_records.xlsx');
+    res.setHeader('Content-Disposition', `attachment; filename=Payroll_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
 
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
     console.error('Excel Export Error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error exporting Excel' });
   }
 };
 
@@ -431,7 +550,8 @@ const exportSinglePayrollPdf = async (req, res) => {
       return res.status(400).json({ message: 'Payroll month and year are required' });
     }
 
-    console.log(`Generating PDF for payroll ID: ${req.params.id}, Employee: ${p.employee?.user?.name}, Month: ${p.month}, Year: ${p.year}`);
+    const monthName = new Date(0, p.month - 1).toLocaleString('default', { month: 'long' });
+    console.log(`Generating PDF for payroll ID: ${req.params.id}, Employee: ${p.employee?.user?.name}, Month: ${monthName}, Year: ${p.year}`);
 
     const formatCurrency = (num) => {
       return '₹' + (num || 0).toLocaleString('en-IN', {
@@ -440,24 +560,20 @@ const exportSinglePayrollPdf = async (req, res) => {
       });
     };
 
-    const monthName = new Date(p.year, p.month - 1).toLocaleString('default', { month: 'long' });
-    console.log(`Month name generated: ${monthName} for month: ${p.month}, year: ${p.year}`);
     const earnings = [
-      { label: 'Basic Salary', value: p.basicSalary || 0 },
+      { label: 'Minimum Wages (Basic + DA)', value: p.basicSalary || 0 },
       { label: 'House Rent Allowance (HRA)', value: p.hra || 0 },
       { label: 'Conveyance Allowance', value: p.conveyance || 0 },
-      { label: 'Other Allowances', value: p.allowances || 0 },
-      { label: 'Sales Incentives', value: p.incentives || 0 },
+      { label: 'Special Allowance', value: p.specialAllowance || 0 },
+      { label: 'Other Allowance', value: p.otherAllowance || 0 },
     ];
-    if (p.performanceRewards > 0) earnings.push({ label: 'Performance Rewards', value: p.performanceRewards });
 
     const deductions = [
-      { label: 'Provident Fund (PF)', value: p.pf || 0 },
+      { label: 'PF Contribution (Employee)', value: p.pf || 0 },
       { label: 'ESIC (Employee)', value: p.esi || 0 },
       { label: 'LWF (Employee)', value: p.lwf || 0 },
-      { label: 'Professional Tax', value: p.professionalTax || 0 },
-      { label: 'Tax (TDS)', value: p.tds || 0 },
     ];
+
     const totalDeductions = deductions.reduce((sum, item) => sum + item.value, 0) + (p.deductions || 0);
     if (p.deductions > 0) deductions.push({ label: 'Other Deductions', value: p.deductions });
 
@@ -822,14 +938,11 @@ const exportSinglePayrollExcel = async (req, res) => {
     worksheet.mergeCells('A10:D10');
 
     const earnings = [
-      ['Basic Salary', p.basicSalary || 0],
+      ['Minimum Wages (Basic + DA)', p.basicSalary || 0],
       ['House Rent Allowance (HRA)', p.hra || 0],
       ['Conveyance Allowance', p.conveyance || 0],
-      ['LTA', p.lta || 0],
-      ['Medical Allowance', p.medical || 0],
-      ['Other Allowances', p.allowances || 0],
-      ['Sales Incentives', p.incentives || 0],
-      ['Performance Rewards', p.performanceRewards || 0]
+      ['Special Allowance', p.specialAllowance || 0],
+      ['Other Allowance', p.otherAllowance || 0]
     ];
 
     earnings.forEach(([label, value]) => {

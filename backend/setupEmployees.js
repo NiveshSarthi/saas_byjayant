@@ -50,6 +50,7 @@ async function setupEmployees() {
       { name: 'Mugdha Sharma', email: 'mugdha.sharma@synditech.com', employeeId: 'EMP002' },
       { name: 'Anuradha', email: 'anuradha@synditech.com', employeeId: 'EMP003' },
       { name: 'Amit', email: 'amit@synditech.com', employeeId: 'EMP004' },
+      { name: 'Ananya', email: 'ananya@synditech.com', employeeId: 'EMP006' },
       { name: 'Heena', email: 'heena@synditech.com', employeeId: 'EMP005' }
     ];
 

@@ -16,16 +16,49 @@ const EmployeeForm = () => {
     userId: '',
     department: '',
     position: '',
+    level: '',
     hireDate: '',
     status: 'Active',
+    monthlyCtc: '',
+    payrollConfig: {
+      basicPercent: 50,
+      pfCapped: true,
+      professionalTaxMode: 'Slab'
+    }
   });
   const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [levels, setLevels] = useState([]);
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [tempConfig, setTempConfig] = useState({
+    basicPercent: 50,
+    pfCapped: true,
+    professionalTaxMode: 'Slab'
+  });
 
   useEffect(() => {
     if (isEdit) {
       loadEmployeeData();
     }
+    fetchFieldConfigs();
   }, [id]);
+
+  const fetchFieldConfigs = async () => {
+    try {
+      const [deptResponse, levelResponse] = await Promise.all([
+        axios.get('/api/administration/field-config/departments'),
+        axios.get('/api/administration/field-config/levels')
+      ]);
+
+      setDepartments(deptResponse.data.values || []);
+      setLevels(levelResponse.data.values || []);
+    } catch (error) {
+      console.error('Error fetching field configs:', error);
+      // Fallback to default values if API fails
+      setDepartments(['Sales', 'HR', 'Administration', 'Accounts', 'IT', 'Operations']);
+      setLevels(['Intern', 'Executive', 'Senior Executive', 'Team Lead', 'Manager', 'Senior Manager', 'Director', 'VP', 'CEO']);
+    }
+  };
 
   const loadEmployeeData = async () => {
     try {
@@ -38,7 +71,10 @@ const EmployeeForm = () => {
         position: employee.position || '',
         hireDate: employee.hireDate ? employee.hireDate.split('T')[0] : '',
         status: employee.status || 'Active',
+        monthlyCtc: employee.monthlyCtc || '',
+        payrollConfig: employee.payrollConfig || { basicPercent: 50, pfCapped: true, professionalTaxMode: 'Slab' }
       });
+      if (employee.payrollConfig) setTempConfig(employee.payrollConfig);
     } catch (error) {
       console.error('Error loading employee:', error);
       alert('Failed to load employee data');
@@ -177,6 +213,47 @@ const EmployeeForm = () => {
                         required
                       />
                     </div>
+                    <div className="input-group">
+                      <label htmlFor="monthlyCtc" style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: 'var(--space-xs)', color: 'var(--text-primary)' }}>
+                        Monthly CTC *
+                      </label>
+                      <input
+                        id="monthlyCtc"
+                        type="number"
+                        name="monthlyCtc"
+                        value={formData.monthlyCtc || ''}
+                        onChange={handleChange}
+                        placeholder="e.g. 35000"
+                        style={{
+                          width: '100%',
+                          padding: 'var(--space-sm) var(--space-md)',
+                          border: '1px solid var(--border-default)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.875rem',
+                          backgroundColor: 'var(--bg-surface)',
+                          color: 'var(--text-primary)'
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payroll Configuration Button */}
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-lg)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: 'var(--space-xs)', color: 'var(--text-primary)' }}>
+                        Payroll Configuration
+                      </h3>
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                        Configure salary structure rules.
+                      </p>
+                    </div>
+                    <Button type="button" onClick={() => setShowPayrollModal(true)} variant="secondary">
+                      <Icons.Settings style={{ marginRight: '8px' }} />
+                      {formData.payrollConfig ? 'Edit Configuration' : 'Add Configuration'}
+                    </Button>
                   </div>
                 </div>
 
@@ -191,9 +268,7 @@ const EmployeeForm = () => {
                       value={formData.department}
                       onChange={handleChange}
                       name="department"
-                      options={[
-                        'Sales', 'HR', 'Administration', 'Accounts', 'IT', 'Operations'
-                      ].map(dept => ({ value: dept, label: dept }))}
+                      options={departments.map(dept => ({ value: dept, label: dept }))}
                       placeholder="Select Department"
                       required
                     />
@@ -224,9 +299,7 @@ const EmployeeForm = () => {
                       value={formData.level || ''}
                       onChange={handleChange}
                       name="level"
-                      options={[
-                        'Intern', 'Executive', 'Senior Executive', 'Team Lead', 'Manager', 'Senior Manager', 'Director', 'VP', 'CEO'
-                      ].map(level => ({ value: level, label: level }))}
+                      options={levels.map(level => ({ value: level, label: level }))}
                       placeholder="Select Level"
                     />
                     <CustomSelect
@@ -262,6 +335,58 @@ const EmployeeForm = () => {
               </div>
             </form>
           </Card>
+
+          {/* Payroll Config Modal */}
+          {showPayrollModal && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+            }}>
+              <Card style={{ padding: 'var(--space-xl)', width: '500px', maxWidth: '90%' }}>
+                <h3 style={{ marginBottom: 'var(--space-lg)', fontSize: '1.25rem', fontWeight: 'bold' }}>Payroll Configuration</h3>
+
+                <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
+                  <div className="input-group">
+                    <label style={{ display: 'block', marginBottom: '5px' }}>Basic Salary % of Gross</label>
+                    <input
+                      type="number"
+                      value={tempConfig.basicPercent}
+                      onChange={(e) => setTempConfig({ ...tempConfig, basicPercent: Number(e.target.value) })}
+                      style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input
+                      type="checkbox"
+                      checked={tempConfig.pfCapped}
+                      onChange={(e) => setTempConfig({ ...tempConfig, pfCapped: e.target.checked })}
+                      id="pfCap"
+                    />
+                    <label htmlFor="pfCap">Cap PF at ₹1800 (Employer Share)</label>
+                  </div>
+                  <div className="input-group">
+                    <label style={{ display: 'block', marginBottom: '5px' }}>Professional Tax Mode</label>
+                    <select
+                      value={tempConfig.professionalTaxMode}
+                      onChange={(e) => setTempConfig({ ...tempConfig, professionalTaxMode: e.target.value })}
+                      style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                    >
+                      <option value="Slab">Slab Based (State Rules)</option>
+                      <option value="Fixed">Fixed Amount</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: 'var(--space-xl)' }}>
+                  <Button variant="secondary" onClick={() => setShowPayrollModal(false)}>Cancel</Button>
+                  <Button variant="primary" onClick={() => {
+                    setFormData({ ...formData, payrollConfig: tempConfig });
+                    setShowPayrollModal(false);
+                  }}>Save Configuration</Button>
+                </div>
+              </Card>
+            </div>
+          )}
 
           {/* Sidebar */}
           <div style={{ display: 'grid', gap: 'var(--space-lg)' }}>
@@ -311,8 +436,8 @@ const EmployeeForm = () => {
                       fontSize: '0.875rem',
                       fontWeight: '500',
                       color: formData.status === 'Active' ? 'var(--success-primary)' :
-                             formData.status === 'Inactive' ? 'var(--text-tertiary)' :
-                             formData.status === 'PIP' ? 'var(--warning-primary)' : 'var(--danger-primary)'
+                        formData.status === 'Inactive' ? 'var(--text-tertiary)' :
+                          formData.status === 'PIP' ? 'var(--warning-primary)' : 'var(--danger-primary)'
                     }}>
                       {formData.status}
                     </span>

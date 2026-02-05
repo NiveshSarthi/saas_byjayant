@@ -7,17 +7,18 @@ const { getPayrolls, getPayrollById, createPayroll, updatePayroll, deletePayroll
 router.use(authenticate);
 router.use(authorize(['HR Manager', 'Accounts', 'Admin']));
 
+router.get('/export/pdf', exportPayrollsPdf);
+router.get('/export/csv', exportPayrollsCsv);
+router.get('/export/excel', exportPayrollsExcel);
+router.post('/calculate', calculateAndGetPayroll);
+
 router.get('/', getPayrolls);
 router.get('/:id', getPayrollById);
 router.post('/', createPayroll);
 router.put('/:id', updatePayroll);
 router.delete('/:id', deletePayroll);
-router.post('/calculate', calculateAndGetPayroll);
 router.get('/:id/export', exportSinglePayrollPdf);
 router.get('/:id/excel', exportSinglePayrollExcel);
-router.get('/export/pdf', exportPayrollsPdf);
-router.get('/export/csv', exportPayrollsCsv);
-router.get('/export/excel', exportPayrollsExcel);
 
 // Employee routes
 const employeeRouter = express.Router();
