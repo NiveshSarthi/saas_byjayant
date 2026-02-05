@@ -1,5 +1,5 @@
-# Use Node.js 16 Alpine for compatibility with pdf-parse
-FROM node:16-alpine
+# Use Node.js 20 Alpine for compatibility with pdf-parse
+FROM node:20-alpine
 
 # Install dumb-init and curl for proper signal handling and health checks
 RUN apk add --no-cache dumb-init curl
