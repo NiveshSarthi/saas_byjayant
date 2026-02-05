@@ -10,7 +10,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=6000
-      - MONGO_URI=mongodb://root:password@mongo:27017/saas_db?authSource=admin
       - JWT_SECRET=your_super_secret_jwt_key_here_change_this_in_production
     volumes:
       - backend-uploads:/app/uploads
