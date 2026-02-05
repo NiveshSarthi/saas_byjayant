@@ -95,7 +95,7 @@ const updateEmployees = async () => {
                 salary: parseFloat(data.salary),
                 phone: data.phone,
                 status: 'Active',
-                isNew: false // Assuming migrated employees are not "New" in terms of onboarding
+                isNewEmployee: false // Assuming migrated employees are not "New" in terms of onboarding
             };
 
             if (!employee) {

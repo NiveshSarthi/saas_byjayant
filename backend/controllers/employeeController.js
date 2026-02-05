@@ -49,7 +49,7 @@ const createEmployee = async (req, res) => {
 
     const {
       userId, name, email, department, position, hireDate, joiningDate,
-      status, level, reportsTo, salary, phone, isNew, isIntern
+      status, level, reportsTo, salary, phone, isNewEmployee, isIntern
     } = req.body;
 
     let generatedPassword = null;
@@ -102,7 +102,7 @@ const createEmployee = async (req, res) => {
       level: level || 'Executive',
       salary: isNaN(parseFloat(salary)) ? 0 : parseFloat(salary),
       phone: phone || '',
-      isNew: isNew !== undefined ? isNew : true,
+      isNewEmployee: isNewEmployee !== undefined ? isNewEmployee : true,
       isIntern: isIntern !== undefined ? isIntern : false,
     };
 
@@ -363,7 +363,7 @@ const completeOnboarding = async (req, res) => {
   try {
     const employee = await Employee.findByIdAndUpdate(
       req.params.id,
-      { isNew: false, status: 'Active' },
+      { isNewEmployee: false, status: 'Active' },
       { new: true }
     );
     if (!employee) {

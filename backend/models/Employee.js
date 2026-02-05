@@ -43,7 +43,7 @@ const employeeSchema = new mongoose.Schema({
   phone: {
     type: String,
   },
-  isNew: {
+  isNewEmployee: {
     type: Boolean,
     default: true,
   },
@@ -84,6 +84,7 @@ const employeeSchema = new mongoose.Schema({
   // Add other fields as needed
 }, {
   timestamps: true,
+  suppressReservedKeysWarning: true,
 });
 
 // Add indexes for better performance

@@ -32,28 +32,7 @@ const upload = multer({ storage });
 // Serve static files from uploads directory
 app.use('/uploads', express.static('uploads'));
 
-// MongoDB connection
-if (process.env.NODE_ENV !== 'test') {
-  const mongoURI = process.env.MONGO_URI;
-
-  if (!mongoURI) {
-    console.error('MONGO_URI environment variable is required');
-    process.exit(1);
-  }
-
-  console.log('Attempting to connect to MongoDB...');
-  mongoose.connect(mongoURI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-  })
-    .then(() => console.log('MongoDB connected successfully'))
-    .catch(err => {
-      console.error('MongoDB connection error:', err.message);
-      process.exit(1);
-    });
-}
+// MongoDB connection will be after server start
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -139,6 +118,27 @@ if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
+
+  // MongoDB connection
+  const mongoURI = process.env.MONGO_URI;
+
+  if (!mongoURI) {
+    console.error('MONGO_URI environment variable is required');
+    process.exit(1);
+  }
+
+  console.log('Attempting to connect to MongoDB...');
+  mongoose.connect(mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+  })
+    .then(() => console.log('MongoDB connected successfully'))
+    .catch(err => {
+      console.error('MongoDB connection error:', err.message);
+      process.exit(1);
+    });
 }
 
 // Export app for testing
