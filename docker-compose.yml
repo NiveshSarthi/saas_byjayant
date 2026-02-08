@@ -3,20 +3,19 @@ version: '3.8'
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "6000:6000"
     environment:
       - NODE_ENV=production
       - PORT=6000
-      - MONGO_URI=${MONGO_URI}
+      - MONGO_URI=mongodb://root:vbPT5AthmBzfWQtaH2MOdbj6nx4d9TFUvmHIGm0htv43pNMEMwMbgby82bqiGhzx@wkkck08gsskswok84ggkkw8o:27017/?directConnection=true
       - JWT_SECRET=${JWT_SECRET}
     volumes:
       - backend-uploads:/app/uploads
-    depends_on:
-      mongo:
-        condition: service_healthy
+    networks:
+      - app-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://0.0.0.0:${PORT}/health"]
       interval: 30s
@@ -36,27 +35,7 @@ services:
     networks:
       - app-network
 
-  mongo:
-    image: mongo:7-jammy
-    ports:
-      - "27017:27017"
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=password
-      - MONGO_INITDB_DATABASE=saas_db
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - app-network
-
 volumes:
-  mongo-data:
   backend-uploads:
 
 networks:
