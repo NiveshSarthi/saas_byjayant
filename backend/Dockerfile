@@ -19,7 +19,8 @@ USER nextjs
 COPY --chown=nextjs:nodejs backend/package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies
+RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY --chown=nextjs:nodejs backend/ .
