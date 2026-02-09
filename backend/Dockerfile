@@ -6,7 +6,7 @@ RUN apk add --no-cache dumb-init curl
 
 # Create app user for security
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+  adduser -S nextjs -u 1001
 
 # Set working directory
 WORKDIR /app
@@ -16,13 +16,17 @@ RUN chown -R nextjs:nodejs /app
 USER nextjs
 
 # Copy package files
-COPY --chown=nextjs:nodejs package*.json ./
+COPY --chown=nextjs:nodejs backend/package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies
+RUN npm ci && npm cache clean --force
 
 # Copy source code
-COPY --chown=nextjs:nodejs . .
+COPY --chown=nextjs:nodejs backend/ .
+
+# Copy linking customization module
+COPY --chown=nextjs:nodejs backend-linking-customization/ /backend-linking-customization/
 
 # Create uploads directory
 RUN mkdir -p uploads
