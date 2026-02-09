@@ -79,7 +79,7 @@ app.use('/api/administration/field-config', fieldConfigRoutes);
 const accountsRoutes = require('./routes/accounts');
 app.use('/api/accounts', accountsRoutes);
 
-const linkingRoutes = require('../backend-linking-customization/routes/linking');
+const linkingRoutes = require('./backend-linking-customization/routes/linking');
 app.use('/api/linking', linkingRoutes);
 
 const attendanceRoutes = require('./routes/attendance');

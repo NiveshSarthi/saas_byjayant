@@ -4,7 +4,7 @@ const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
 let getIncentiveRelations;
 try {
-  ({ getIncentiveRelations } = require('../../backend-linking-customization/services/linkingService'));
+  ({ getIncentiveRelations } = require('../backend-linking-customization/services/linkingService'));
 } catch (e) {
   console.warn('[WARN] Could not load linkingService:', e.message);
   getIncentiveRelations = () => [];

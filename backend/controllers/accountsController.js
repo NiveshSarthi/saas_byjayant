@@ -140,7 +140,7 @@ const approveExpenseRequest = async (req, res) => {
     const expense = await approveExpense(id, req.user.id, reason);
 
     // Trigger automated linking: add to petty cash ledger
-    const { onExpenseApproved } = require('../../backend-linking-customization/services/linkingService');
+    const { onExpenseApproved } = require('../backend-linking-customization/services/linkingService');
     await onExpenseApproved(expense);
 
     res.json({ message: 'Expense approved and petty cash updated' });

@@ -5,7 +5,7 @@ const ExpenseApproval = require('../models/ExpenseApproval');
 const Deal = require('../models/Deal');
 const SalesPolicy = require('../models/SalesPolicy');
 const Employee = require('../models/Employee');
-const { applyApprovalFlow } = require('../../backend-linking-customization/services/linkingService');
+const { applyApprovalFlow } = require('../backend-linking-customization/services/linkingService');
 
 // Calculate incentive amount for a deal
 async function calculateIncentiveAmount(deal) {

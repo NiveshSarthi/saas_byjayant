@@ -1,7 +1,7 @@
 const express = require('express');
 const linkingController = require('../controllers/linkingController');
-const { authenticate } = require('../../backend/middlewares/auth');
-const { authorize } = require('../../backend/middlewares/rbac');
+const { authenticate } = require('../../middlewares/auth');
+const { authorize } = require('../../middlewares/rbac');
 
 const router = express.Router();
 
