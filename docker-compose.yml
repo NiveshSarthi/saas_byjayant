@@ -23,8 +23,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 40s
-    networks:
-      - app-network
 
   frontend:
     restart: always
@@ -32,8 +30,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     networks:
       - app-network
 
